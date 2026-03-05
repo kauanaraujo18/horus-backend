@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestão Integrada</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+    <div class="navbar">
+        <a href="#" style="pointer-events: none; margin-bottom: 20px; color: var(--accent-color)">
+            <i class="fas fa-car-alt" style="font-size: 28px;"></i>
+        </a>
+
+        <a href="#" class="nav-item" id="produtosBtn">
+            <i class="fas fa-box-open"></i>
+            <span class="nav-text">Produtos</span>
+        </a>
+
+        <a href="#" class="nav-item" id="caixaBtn">
+            <i class="fas fa-cash-register"></i> 
+            <span class="nav-text">Caixa</span>
+        </a>
+
+        <a href="#" class="nav-item" id="relatoriosBtn">
+            <i class="fas fa-file-alt"></i> 
+            <span class="nav-text">Relatórios</span>
+        </a>
+    </div>
+
+    <div id="modalPesquisa" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Pesquisar Produto</h3>
+                <span class="close-modal">&times;</span>
+            </div>
+            
+            <div class="modal-body">
+                <input type="text" id="inputBuscaModal" placeholder="Digite o nome para buscar..." autocomplete="off">
+                <div id="listaResultadosModal" class="lista-resultados">
+                    <p style="color: #999; text-align: center;">Digite algo para pesquisar...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div id="produtosDiv" class="draggable">
+        <div class="headerjanela" id="produtosDivheader">
+            <div style="display: flex; align-items: center;">
+                <i class="fas fa-box-open me-2" id="iconeJanelaPrincipal"></i>
+                <i class="fas fa-arrow-left me-2" id="btnVoltarProdutos" style="display: none; cursor: pointer; margin-right: 10px;"></i>
+                <span id="tituloJanelaProdutos">Cadastro Geral de Produtos</span>
+            </div>
+            <span class="close-btn"><i class="fas fa-times"></i></span>
+        </div>
+
+        <div class="window-content">
+            
+            <div id="conteudoMenuProdutos">
+                <div class="menu-interno-container">
+                    <button class="botaoJanela" id="btnNovoProduto">
+                        <i class="fas fa-plus-circle"></i> Cadastrar
+                    </button>
+                    <button class="botaoJanela">
+                        <i class="fas fa-search"></i> Consultar
+                    </button>
+                </div>
+            </div>
+
+            <div id="conteudoFormProdutos" style="display: none;">
+                <form class="form-container" id="formSalvarProduto">
+                    <input type="hidden" id="produtoId">
+
+                    <label for="produtoCodigo">Código de Barras:</label>
+                    <input type="text" id="produtoCodigo" class="input-bloqueado" required placeholder="Digite o código">
+
+                    <label for="produtoNome">Nome:</label>
+                    <input type="text" id="produtoNome" required placeholder="Digite o nome do produto">
+
+                    <label for="produtoValor">Valor:</label>
+                    <input type="text" id="produtoValor" placeholder="0,00" required oninput="mascaraMoeda(this)">
+                    
+                    <div style="margin-top: 15px;">
+                        <button type="submit" style="background-color: #28a745; color: white;">
+                            <i class="fas fa-save"></i> Salvar
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="conteudoConsultaProdutos" style="display: none; height: 100%; flex-direction: column;">
+                
+                <div class="filtro-container" style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <input type="text" id="filtroNomeProduto" placeholder="Filtrar por nome..." style="flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+                    <button id="btnPesquisarProduto" class="botaoJanela" onclick="buscarProdutosAPI()" style="width: auto; padding: 0 15px; min-width: auto; flex-direction: row;">
+                        <i class="fas fa-search"></i> Pesquisar
+                    </button>
+                </div>
+
+                <div style="overflow-y: auto; flex: 1; border: 1px solid #ddd; border-radius: 4px;">
+                    <table id="tabelaProdutos" style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                        <thead style="background-color: #f2f2f2; position: sticky; top: 0; z-index: 1;">
+                            <tr>
+                                <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Cód. Barras</th>
+                                <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Nome</th>
+                                <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">Valor</th>
+                                <th style="padding: 10px; text-align: center; border-bottom: 1px solid #ddd; width: 80px;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaProdutosCorpo">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+    <div id="caixaDiv" class="draggable">
+        <div class="headerjanela" id="caixaDivheader">
+            <div style="display: flex; align-items: center;">
+                <i class="fas fa-cash-register me-2"></i>
+                <span>Frente de Caixa</span>
+            </div>
+            <span class="close-btn"><i class="fas fa-times"></i></span>
+        </div>
+
+        <div class="window-content" style="padding: 15px;">
+            <div id="conteudoCaixa" style="height: 100%;">
+                <div style="display: flex; gap: 20px; height: 100%;">
+                    
+                    <div style="flex: 2; display: flex; flex-direction: column; gap: 10px;">
+                        <div class="input-group-search">
+                            <button type="button" onclick="abrirModalPesquisaParaCaixa()" title="Pesquisar Produto" style="background-color: #333; color: white; border: none; padding: 10px 15px; border-radius: 4px 0 0 4px; cursor: pointer;">
+                                <i class="fas fa-search"></i>
+                            </button>
+                            <input type="text" id="caixaBuscaProduto" placeholder="F2 - Pesquisar Produto" readonly style="flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 0 4px 4px 0;">
+                        </div>
+
+                        <button onclick="toggleLeitorBarras()" style="width: 100%; margin-bottom: 10px; padding: 10px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                            <i class="fas fa-barcode"></i> Ativar Leitor de Código de Barras
+                        </button>
+
+                        <div id="painelLeitorBarras" style="display: none; background: #e2e6ea; padding: 10px; border-radius: 4px; border: 2px solid #6c757d; margin-bottom: 10px;">
+                            <div style="display: flex; gap: 5px;">
+                                <input type="text" id="inputCodigoBarras" placeholder="Aguardando leitura do código..." 
+                                    style="flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px;"
+                                    autocomplete="off">
+                                
+                                <button onclick="toggleLeitorBarras()" title="Fechar Leitor" style="background: #dc3545; color: white; border: none; padding: 0 15px; border-radius: 4px; cursor: pointer;">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <small style="color: #666; font-size: 11px; margin-top: 5px; display: block;">
+                                <i class="fas fa-info-circle"></i> Passe o leitor ou digite e pressione Enter.
+                            </small>
+                        </div>
+
+
+                        <div style="flex: 1; border: 1px solid #ddd">
+
+                        <div style="flex: 1; border: 1px solid #ddd; border-radius: 4px; overflow-y: auto; background: white;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead style="background: #f8f9fa; position: sticky; top: 0;">
+                                    <tr>
+                                        <th style="padding: 10px; text-align: left; border-bottom: 1px solid #eee;">Produto</th>
+                                        <th style="padding: 10px; text-align: center; border-bottom: 1px solid #eee;">Qtd</th>
+                                        <th style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">Unit.</th>
+                                        <th style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">Total</th>
+                                        <th style="width: 50px; border-bottom: 1px solid #eee;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaCarrinho"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div style="flex: 1; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ddd; display: flex; flex-direction: column; gap: 10px;">
+                        <h2 style="margin: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; font-size: 18px;">Resumo</h2>
+
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Subtotal:</span>
+                            <span id="lblSubtotal">R$ 0,00</span>
+                        </div>
+
+                        <div>
+                            <label style="font-size: 12px;">Desconto (R$):</label>
+                            <input type="text" id="inputDesconto" placeholder="R$ 0,00" 
+                                oninput="mascaraMoeda(this); calcularTotaisCaixa()" 
+                                class="form-control" style="width: 100%; padding: 8px;">
+                        </div>
+
+                        <div>
+                            <label style="font-size: 12px;">Acréscimo (R$):</label>
+                            <input type="text" id="inputAcrescimo" placeholder="R$ 0,00" 
+                                oninput="mascaraMoeda(this); calcularTotaisCaixa()" 
+                                class="form-control" style="width: 100%; padding: 8px;">
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; font-size: 20px; font-weight: bold; color: #28a745; margin-top: 5px;">
+                            <span>TOTAL:</span>
+                            <span id="lblTotalFinal">R$ 0,00</span>
+                        </div>
+
+                        <hr style="width: 100%; border: 0; border-top: 1px solid #eee;">
+
+                        <div style="margin-top: 15px;">
+                            <label style="font-size: 12px; font-weight: bold; color: #333; margin-bottom: 5px; display: block;">Formas de Pagamento:</label>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 5px;">
+                                
+                                <div>
+                                    <label style="font-size: 10px;">Dinheiro</label>
+                                    <input type="tel" id="inputPagDinheiro" placeholder="R$ 0,00" class="form-control" 
+                                        style="width: 100%; padding: 5px; font-size: 13px; text-align: right;"
+                                        oninput="mascaraMoeda(this); calcularTotaisCaixa()">
+                                </div>
+
+                                <div>
+                                    <label style="font-size: 10px;">PIX</label>
+                                    <input type="tel" id="inputPagPix" placeholder="R$ 0,00" class="form-control" 
+                                        style="width: 100%; padding: 5px; font-size: 13px; text-align: right;"
+                                        oninput="mascaraMoeda(this); calcularTotaisCaixa()">
+                                </div>
+
+                                <div>
+                                    <label style="font-size: 10px;">Crédito</label>
+                                    <input type="tel" id="inputPagCredito" placeholder="R$ 0,00" class="form-control" 
+                                        style="width: 100%; padding: 5px; font-size: 13px; text-align: right;"
+                                        oninput="mascaraMoeda(this); calcularTotaisCaixa()">
+                                </div>
+
+                                <div>
+                                    <label style="font-size: 10px;">Débito</label>
+                                    <input type="tel" id="inputPagDebito" placeholder="R$ 0,00" class="form-control" 
+                                        style="width: 100%; padding: 5px; font-size: 13px; text-align: right;"
+                                        oninput="mascaraMoeda(this); calcularTotaisCaixa()">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label style="font-size: 12px;">Parcelas:</label>
+                            <input type="number" id="inputParcelas" value="1" min="1" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+
+                        <hr style="width: 100%; border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+
+                        <div>
+                            <label style="font-size: 12px; font-weight: bold; color: #333;">Valor Pago Total (R$):</label>
+                            <input type="text" 
+                                id="inputValorPago" 
+                                value="R$ 0,00" 
+                                readonly 
+                                class="form-control" 
+                                style="width: 100%; padding: 10px; font-size: 18px; text-align: right; border: 1px solid #ccc; background-color: #e9ecef; color: #333; font-weight: bold; border-radius: 4px;">
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; margin-bottom: 15px; background-color: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px solid #dee2e6;">
+                            
+                            <div style="text-align: left;">
+                                <span style="font-size: 13px; color: #666; font-weight: 500;">Falta Pagar:</span>
+                                <br>
+                                <span id="lblAreceber" style="font-size: 20px; font-weight: bold; color: #dc3545;">R$ 0,00</span>
+                            </div>
+
+                            <div style="width: 1px; height: 40px; background-color: #ccc;"></div>
+
+                            <div style="text-align: right;">
+                                <span style="font-size: 13px; color: #666; font-weight: 500;">Troco:</span>
+                                <br>
+                                <span id="lblTroco" style="font-size: 20px; font-weight: bold; color: #28a745;">R$ 0,00</span>
+                            </div>
+
+                        </div>
+
+                        <button onclick="finalizarVenda()" style="margin-top: auto; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                            <i class="fas fa-check"></i> Finalizar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="relatoriosDiv" class="draggable">
+        <div class="headerjanela" id="relatoriosDivheader">
+            <div style="display: flex; align-items: center;">
+                <i class="fas fa-file-invoice-dollar me-2" id="iconeJanelaRelatorios"></i>
+                <i class="fas fa-arrow-left me-2" id="btnVoltarRelatorios" style="display: none; cursor: pointer; margin-right: 10px;" title="Voltar"></i>
+                <span id="tituloJanelaRelatorios">Central de Relatórios</span>
+            </div>
+            <span class="close-btn" onclick="fecharJanelaRelatorios()"><i class="fas fa-times"></i></span>
+        </div>
+        
+        <div class="window-content">
+            
+            <div id="conteudoMenuRelatorios">
+                <div class="menu-interno-container">
+                    <button class="botaoJanela" id="btnAbrirRelVendas">
+                        <i class="fas fa-chart-line"></i> Relatório de Vendas
+                    </button>
+                    <button class="botaoJanela" id="btnGerarBarcode">
+                        <i class="fas fa-barcode"></i> Código de Barras
+                    </button>
+                    <button class="botaoJanela" id="btnAbrirEtiqueta">
+                        <i class="fas fa-tags"></i> Etiqueta de Preço
+                    </button>
+                </div>
+            </div>
+
+            <div id="conteudoFormVendas" style="display: none;">
+                <form class="form-container" id="formRelatorioVendas">
+                    <div style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label>Data Inicial:</label>
+                            <input type="date" id="relDataInicio" required class="form-control">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Data Final:</label>
+                            <input type="date" id="relDataFim" required class="form-control">
+                        </div>
+                    </div>
+
+                    <label>Forma de Pagamento:</label>
+                    <select id="relFormaPagamento" class="form-control">
+                        <option value="TODAS">Todas</option>
+                        <option value="DINHEIRO">Dinheiro</option>
+                        <option value="PIX">PIX</option>
+                        <option value="CREDITO">Crédito</option>
+                        <option value="DEBITO">Débito</option>
+                    </select>
+
+                    <label>Filtrar Produtos (Opcional):</label>
+                    <div id="listaProdutosCheck" style="height: 120px; overflow-y: auto; border: 1px solid #ccc; padding: 5px; background: #fff; border-radius: 4px;">
+                        <small style="color:#666">Carregando produtos...</small>
+                    </div>
+                    <div style="text-align: right; margin-bottom: 10px;">
+                        <small style="cursor: pointer; color: blue;" onclick="marcarTodosProdutos(true)">Marcar Todos</small> | 
+                        <small style="cursor: pointer; color: blue;" onclick="marcarTodosProdutos(false)">Desmarcar</small>
+                    </div>
+
+                    <button type="button" onclick="gerarRelatorioVendasPDF()" class="btn-verde" style="width: 100%;">
+                        <i class="fas fa-file-pdf"></i> Gerar Relatório PDF
+                    </button>
+                </form>
+            </div>
+
+            <div id="conteudoFormBarcode" style="display: none;">
+                <form class="form-container" id="formBarcode">
+                    <label>Quantidade de Etiquetas:</label>
+                    <input type="number" id="relatorioQtd" min="1" value="1" class="form-control">
+                    <label>Posição Inicial (1 a 126):</label>
+                    <input type="number" id="relatorioPosicao" min="1" max="126" value="1" class="form-control">
+                    <button type="submit" id="btnAcaoGerarBarcode"><i class="fas fa-print"></i> Gerar</button>
+                </form>
+            </div>
+
+            <div id="conteudoFormEtiqueta" style="display: none;">
+                <form class="form-container" id="formEtiqueta">
+                    <label>Produto:</label>
+                    <div class="input-group-search">
+                        <button type="button" id="btnAbrirModal" style="background-color: #333; color: white; border: none; padding: 10px;"><i class="fas fa-search"></i></button>
+                        <input type="text" id="displayNomeProduto" placeholder="Selecione..." readonly required style="flex: 1;">
+                        <input type="hidden" id="etiquetaIdProduto">
+                    </div>
+                    <label>Qtd Cópias:</label>
+                    <input type="number" id="etiquetaQtdCopias" min="1" value="1" class="form-control">
+                    <button type="submit" id="btnGerarEtiqueta"><i class="fas fa-print"></i> Gerar Etiquetas</button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="login-overlay">
+        <div class="login-container-box">
+            <div class="login-header">
+                <i class="fas fa-shield-alt logo-login"></i>
+                <h2>Acesso Horus</h2>
+                <p>Identifique-se para continuar</p>
+            </div>
+
+            <form id="formLoginFake" onsubmit="event.preventDefault(); realizarLoginVisual();">
+                <div class="input-group-login">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="loginUsuario" placeholder="Usuário" autocomplete="off">
+                </div>
+
+                <div class="input-group-login">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="loginSenha" placeholder="Senha">
+                </div>
+
+                <button type="submit" class="btn-login-entrar">
+                    ENTRAR <i class="fas fa-arrow-right ms-2"></i>
+                </button>
+            </form>
+            
+            <div class="login-footer">
+                <small>Versão 1.2.0 - Sistema de Gestão</small>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/barcode.js"></script>
+    <script src="./js/janelas.js"></script>
+    <script src="./js/navegacao.js"></script>
+    <script src="./js/relatorios.js"></script>
+    <script src="./js/etiquetas.js"></script>
+    <script src="./js/caixa.js"></script> 
+    <script src="./js/main.js"></script> 
+
+</body>
+</html>

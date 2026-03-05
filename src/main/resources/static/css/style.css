@@ -1,0 +1,605 @@
+/* --- MANTENDO EXATAMENTE A MESMA ESTILIZAÇÃO ANTERIOR --- */
+
+:root {
+    --bg-overlay: rgba(15, 23, 42, 0.85);
+    --sidebar-bg: #0f172a;
+    --window-header-bg: #1e293b;
+    --window-body-bg: #f8fafc;
+    --accent-color: #0066FF; 
+    --accent-hover: #0052cc;
+    --text-light: #e2e8f0;
+    --text-dark: #334155;
+    --text-muted: #94a3b8;
+    --border-radius-lg: 16px;
+    --border-radius-md: 10px;
+    --shadow-window: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(var(--bg-overlay), var(--bg-overlay)), url('../images/image_0.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* --- Navbar Lateral --- */
+.navbar {
+    width: 70px;
+    height: 100vh;
+    position: fixed;
+    top: 0; left: 0;
+    background: var(--sidebar-bg);
+    border-right: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 100;
+    box-shadow: 5px 0 15px rgba(0,0,0,0.3);
+    padding-top: 20px;
+    overflow-y: auto; /* Permite rolagem se muitos itens */
+    scrollbar-width: none; /* Firefox */
+}
+.navbar::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+
+.navbar:hover {
+    width: 240px; /* Aumentei um pouco para caber nomes maiores */
+    align-items: flex-start;
+}
+
+.navbar a {
+    width: 90%;
+    margin: 5px auto;
+    padding: 15px;
+    text-decoration: none;
+    color: var(--text-muted);
+    border-radius: var(--border-radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.navbar a i {
+    font-size: 20px;
+    min-width: 30px;
+    text-align: center;
+}
+
+.navbar a .nav-text {
+    display: none;
+    margin-left: 15px;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s ease 0.1s;
+    font-size: 14px;
+}
+
+.navbar:hover a { justify-content: flex-start; padding-left: 20px; }
+.navbar:hover a .nav-text { display: inline-block; opacity: 1; }
+
+.navbar a:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--accent-color);
+}
+
+.navbar a:hover::before {
+    content: '';
+    position: absolute; left: -10px; height: 80%; width: 4px;
+    background-color: var(--accent-color);
+    border-radius: 0 4px 4px 0;
+}
+
+/* --- Janelas (Modais) --- */
+.draggable {
+    position: absolute;
+    background-color: var(--window-body-bg);
+    border-radius: var(--border-radius-lg);
+    width: 750px;
+    max-width: 95vw;
+    height: 650px;
+    max-height: 90vh;
+    z-index: 9;
+    overflow-y: auto;
+    box-shadow: var(--shadow-window);
+    display: none;
+    border: 1px solid rgba(255,255,255,0.1);
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25), 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+
+
+.draggable.is-visible {
+    display: block;
+    opacity: 1;
+    transform: scale(1) translate(0, 0) !important;
+}
+
+.headerjanela {
+    padding: 15px 25px;
+    cursor: move;
+    background-color: var(--window-header-bg);
+    color: var(--text-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.close-btn {
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 20px;
+    transition: color 0.2s;
+    padding: 5px;
+}
+.close-btn:hover { color: #ef4444; }
+
+.window-content { padding: 30px; color: var(--text-dark); }
+
+.menu-interno-container {
+    display: flex;
+    gap: 15px;
+    justify-content: flex-start; /* Alinhado à esquerda/grid */
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.botaoJanela {
+    padding: 15px 20px;
+    min-width: 140px;
+    text-align: center;
+    background-color: white;
+    color: var(--text-dark);
+    border: 1px solid #e2e8f0;
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    font-weight: 500;
+    font-family: 'Poppins', sans-serif;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.botaoJanela i {
+    font-size: 24px;
+    color: var(--window-header-bg);
+    transition: color 0.2s;
+}
+
+.botaoJanela:hover {
+    border-color: var(--accent-color);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0, 102, 255, 0.1);
+}
+
+.botaoJanela:hover i { color: var(--accent-color); }
+
+/* Formulários (Escondidos por padrão, estrutura base) */
+.form-container { padding: 10px 30px 30px 30px; }
+.form-container label { display: block; margin-top: 20px; margin-bottom: 8px; font-weight: 600; color: var(--text-dark); font-size: 0.9rem; }
+.form-container input, .form-container select {
+    padding: 12px 15px; margin-bottom: 5px; border: 2px solid #e2e8f0; border-radius: var(--border-radius-md);
+    background-color: white; width: 100%; font-family: 'Poppins', sans-serif; outline: none; transition: all 0.3s;
+}
+.form-container input:focus { border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.15); }
+.form-container button[type="submit"] {
+    background-color: var(--accent-color); color: white; border: none; padding: 15px; border-radius: var(--border-radius-md);
+    cursor: pointer; width: 100%; margin-top: 30px; font-weight: 600; transition: background-color 0.2s;
+}
+.form-container button[type="submit"]:hover { background-color: var(--accent-hover); }
+
+/* Container das sugestões */
+.sugestoes-box {
+    position: absolute;
+    top: 100%; /* Logo abaixo do input */
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ccc;
+    border-top: none;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* Item individual da lista */
+.sugestao-item {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    color: #333;
+}
+
+.sugestao-item:hover {
+    background-color: #f0f0f0;
+}
+
+/* Item selecionado (opcional) */
+.sugestao-item strong {
+    color: #000;
+}
+
+/* Container do Input com Botão na Esquerda */
+.input-group-search {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.input-group-search button {
+    background-color: #333; /* Cor do botão */
+    color: white;
+    border: 1px solid #333;
+    padding: 10px 15px;
+    cursor: pointer;
+    border-radius: 4px 0 0 4px; /* Arredonda esquerda */
+}
+
+.input-group-search input {
+    flex: 1; /* Ocupa o resto do espaço */
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-left: none; /* Remove borda duplicada */
+    border-radius: 0 4px 4px 0; /* Arredonda direita */
+    background-color: #f9f9f9; /* Cor de fundo de campo bloqueado */
+    cursor: not-allowed; /* Indica que não pode digitar */
+}
+
+/* style.css */
+.modal-overlay {
+    position: fixed; /* Garante que fixa na tela inteira, independente da janela */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5); /* Fundo escuro transparente */
+    z-index: 9999; /* Z-INDEX ALTÍSSIMO para ficar acima de tudo */
+    display: none; /* Começa escondido */
+    justify-content: center; /* Centraliza o conteúdo */
+    align-items: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 500px;
+    max-width: 90%;
+    /* Removemos posicionamento absoluto se usarmos flex no overlay */
+    position: relative; 
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    padding: 15px;
+    background: #f1f1f1;
+    border-bottom: 1px solid #ddd;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.close-modal {
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #666;
+}
+
+.close-modal:hover { color: #000; }
+
+#inputBuscaModal {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    box-sizing: border-box; /* Importante para não estourar a largura */
+}
+
+/* Lista de Resultados dentro do Modal */
+.lista-resultados {
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+}
+
+.item-produto {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.item-produto:hover {
+    background-color: #e9f5ff; /* Azulzinho ao passar o mouse */
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.btn-excluir {
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    font-size: 16px;
+}
+
+.btn-excluir:hover {
+    background-color: #fee2e2; /* Fundo vermelho claro */
+    color: #ef4444; /* Ícone vermelho vivo */
+}
+
+.btn-editar {
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    font-size: 16px;
+    margin-right: 5px;
+}
+
+.btn-editar:hover {
+    background-color: #e0f2fe; /* Azul claro */
+    color: #0284c7; /* Azul forte */
+}
+
+/* --- ESTILOS ESPECÍFICOS DO CAIXA --- */
+
+/* Ajuste de altura para a tabela não estourar a janela */
+#caixaDiv .window-content {
+    overflow: hidden; /* Remove rolagem dupla */
+    padding-bottom: 0;
+}
+
+/* Tabela do Carrinho */
+#tabelaCarrinho tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+#tabelaCarrinho td {
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+}
+
+/* Botão de remover item (vermelho discreto) */
+.btn-remover-item {
+    background: transparent;
+    border: none;
+    color: #ff4d4d;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+.btn-remover-item:hover {
+    background-color: #ffe6e6;
+}
+
+/* Painel da Direita (Resumo e Pagamento) */
+#lblSubtotal {
+    font-weight: 500;
+    color: #555;
+}
+
+/* Inputs do painel direito (Desconto, Acréscimo) */
+#caixaDiv input.form-control,
+#caixaDiv select {
+    background-color: #f8f9fa;
+    border: 1px solid #ced4da;
+    transition: border-color 0.2s;
+}
+#caixaDiv input.form-control:focus,
+#caixaDiv select:focus {
+    background-color: #fff;
+    border-color: #007bff;
+    outline: none;
+}
+
+/* Destaque do Total Final */
+#lblTotalFinal {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+/* Botão Finalizar Venda */
+#caixaDiv button[onclick="finalizarVenda()"] {
+    background-color: #28a745; /* Verde Sucesso */
+    transition: background-color 0.2s, transform 0.1s;
+}
+#caixaDiv button[onclick="finalizarVenda()"]:hover {
+    background-color: #218838;
+}
+#caixaDiv button[onclick="finalizarVenda()"]:active {
+    transform: scale(0.98);
+}
+
+/* =================================================================
+   ESTILOS DA TELA DE LOGIN (OVERLAY) - VERSÃO FINAL
+   ================================================================= */
+
+#login-overlay {
+    position: fixed !important; /* Força ficar fixo na tela */
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    
+    /* Gradiente Profissional Escuro */
+    background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+    
+    /* Z-INDEX EXTREMO: Garante que fique acima de modais, caixa e tudo */
+    z-index: 2147483647 !important;
+    
+    /* Centralização Flexbox */
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    
+    /* Configuração da Animação de Saída */
+    transition: transform 0.8s cubic-bezier(0.77, 0, 0.175, 1), opacity 0.8s ease;
+}
+
+/* Classe adicionada pelo JS para "subir" a tela */
+#login-overlay.unlocked {
+    transform: translateY(-100vh); /* Move a tela inteira para cima */
+    opacity: 0;
+    pointer-events: none; /* Permite clicar no que está embaixo */
+}
+
+/* --- Caixa Central Branca --- */
+.login-container-box {
+    background-color: #ffffff;
+    width: 90%;
+    max-width: 400px;
+    padding: 40px;
+    border-radius: 12px;
+    
+    /* Sombra profunda para dar destaque */
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    
+    text-align: center;
+    position: relative;
+    
+    /* Animação suave de entrada */
+    animation: loginEntry 0.6s ease-out backwards;
+}
+
+@keyframes loginEntry {
+    from { transform: scale(0.9) translateY(20px); opacity: 0; }
+    to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* --- Elementos Internos --- */
+.login-header { 
+    margin-bottom: 30px; 
+}
+
+.login-header i.logo-login { 
+    font-size: 48px; 
+    color: #2c3e50; 
+    margin-bottom: 15px; 
+    display: block; 
+}
+
+.login-header h2 { 
+    margin: 0; 
+    font-size: 24px; 
+    color: #333; 
+    font-weight: 700;
+}
+
+.login-header p { 
+    margin: 8px 0 0; 
+    color: #666; 
+    font-size: 14px; 
+}
+
+/* --- Inputs --- */
+.input-group-login {
+    position: relative;
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.input-group-login i {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #999;
+    font-size: 16px;
+    z-index: 2;
+}
+
+.input-group-login input {
+    width: 100%;
+    padding: 14px 15px 14px 45px; /* Espaço na esquerda para o ícone */
+    border: 1px solid #ddd;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    font-size: 15px;
+    color: #333;
+    outline: none;
+    box-sizing: border-box; /* Garante que o padding não estoure a largura */
+    transition: all 0.3s;
+}
+
+.input-group-login input:focus {
+    border-color: #2c3e50;
+    background-color: #fff;
+    box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.1);
+}
+
+/* --- Botão --- */
+.btn-login-entrar {
+    width: 100%;
+    padding: 14px;
+    background-color: #2c3e50; /* Cor Principal */
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 10px;
+}
+
+.btn-login-entrar:hover {
+    background-color: #1a252f;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(44, 62, 80, 0.2);
+}
+
+.btn-login-entrar:active {
+    transform: translateY(0);
+}
+
+.btn-login-entrar:disabled {
+    background-color: #95a5a6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* --- Rodapé --- */
+.login-footer {
+    margin-top: 25px;
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+    color: #aaa;
+    font-size: 12px;
+}
