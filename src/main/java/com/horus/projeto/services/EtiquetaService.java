@@ -18,7 +18,7 @@ public class EtiquetaService {
     @Autowired
     private ProdutoRepository repository;
 
-    private static final String CAMINHO_LOGO = "C:\\KBsAntigo\\Josys\\VERSOES\\1.3.0\\src\\main\\resources\\static\\images\\logo2.png";
+    private static final String CAMINHO_LOGO = "https://horus-api-cjb4.onrender.com/images/logo2.png";
 
     public byte[] gerarEtiquetasPorId(Long codProduto, int quantidade) throws DocumentException, IOException {
         
