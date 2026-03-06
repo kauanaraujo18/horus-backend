@@ -61,7 +61,7 @@ async function processarCodigoBarras(codigo) {
 
     try {
         // MUDANÇA AQUI: Chamamos a nova rota específica de código
-        // Ex: http://localhost:8080/api/produtos/codigo/789123456
+        // Ex: https://horus-api-cjb4.onrender.com/api/produtos/codigo/789123456
         const res = await fetch(`${API_URL}/api/produtos/codigo/${encodeURIComponent(codigo)}`);
         
         if (res.ok) {
