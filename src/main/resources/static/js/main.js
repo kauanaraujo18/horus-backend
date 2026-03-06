@@ -262,7 +262,7 @@ async function realizarLoginVisual() {
 
     try {
         // B. Chamada ao Backend (Service que criamos)
-        // Certifique-se que API_URL está declarada no início do arquivo (ex: https://horus-api-cjb4.onrender.com)
+        // Certifique-se que API_URL está declarada no início do arquivo (ex: http://localhost:8080)
         const response = await fetch(`${API_URL}/api/usuarios/login`, {
             method: 'POST',
             headers: { 
