@@ -33,6 +33,9 @@ public class SecurityConfigurations {
                     // Libera as requisições de "pré-voo" do navegador (CORS) para o seu Frontend separado
                     req.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
 
+                    // Libera o visual e os scripts!
+                    req.requestMatchers("/css/**", "/js/**", "/assets/**", "/img/**").permitAll();
+
                     // Libera as mensagens de erro do Java para chegarem no Front!
                     req.requestMatchers("/error").permitAll();
 
