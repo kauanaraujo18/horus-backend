@@ -280,7 +280,7 @@ async function realizarLoginVisual() {
 
     try {
         // B. Chamada ao Backend
-        const response = await fetch(`${API_URL}/api/login`, {
+        const response = await fetch(`${API_URL}/api/usuarios/login`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json' 
