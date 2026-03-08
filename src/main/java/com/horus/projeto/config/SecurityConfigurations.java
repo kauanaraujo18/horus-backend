@@ -35,6 +35,10 @@ public class SecurityConfigurations {
 
                     // Libera as mensagens de erro do Java para chegarem no Front!
                     req.requestMatchers("/error").permitAll();
+
+                    // Libera todos os arquivos visuais do seu Frontend!
+                    req.requestMatchers("/*.html").permitAll(); 
+                    req.requestMatchers("/").permitAll(); // Libera a raiz do site
                     
                     // Exige que TODAS as outras rotas (produtos, vendas, etc) precisem de autenticação
                     req.anyRequest().authenticated();
