@@ -72,7 +72,15 @@ public class UsuarioEntity implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_USER"));
+        // Se a lista de permissões for nula (usuário novo), devolvemos uma lista vazia para não quebrar o Java
+        if (this.permissoes == null || this.permissoes.isEmpty()) {
+            return List.of(); 
+        }
+        
+        // Se tiver permissões, converte para o formato do Spring Security
+        return this.permissoes.stream()
+                .map(permissao -> new SimpleGrantedAuthority(permissao.getNome()))
+                .toList();
     }
 
     @Override
