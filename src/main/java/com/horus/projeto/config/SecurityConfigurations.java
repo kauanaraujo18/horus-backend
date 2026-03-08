@@ -34,7 +34,7 @@ public class SecurityConfigurations {
                     req.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
 
                     // Libera o visual e os scripts!
-                    req.requestMatchers("/css/**", "/js/**", "/assets/**", "/img/**").permitAll();
+                    req.requestMatchers("/css/**", "/js/**", "/assets/**", "/images/**").permitAll();
 
                     // Libera as mensagens de erro do Java para chegarem no Front!
                     req.requestMatchers("/error").permitAll();
