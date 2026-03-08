@@ -1,6 +1,7 @@
 package com.horus.projeto.controllers;
 
 import com.horus.projeto.entities.ProdutoEntity;
+import com.horus.projeto.entities.UsuarioEntity;
 import com.horus.projeto.repositories.ProdutoRepository;
 import com.horus.projeto.services.ProdutoService;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -39,40 +41,48 @@ public class ProdutoController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ProdutoEntity>> listarProdutos(@RequestParam(value = "nome", required = false) String nome) {
+    public ResponseEntity<List<ProdutoEntity>> listarTodos() {
+        // 1. Pescamos o usuário logado da memória do Spring Security
+        var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         
-        // Debug para garantir
-        System.out.println("Endpoint único chamado. Filtro: " + nome);
-
-        List<ProdutoEntity> lista;
-
-        if (nome != null && !nome.isEmpty()) {
-            // Se tem nome, filtra
-            lista = repository.findByNomeContainingIgnoreCase(nome);
-        } else {
-            // Se não tem nome, traz tudo (substitui o antigo listarTodos)
-            lista = repository.findAll();
-        }
-
-        return ResponseEntity.ok(lista);
+        // 2. Extraímos o ID da empresa dele! Adeus simulação!
+        Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
+        
+        // Agora chamamos o Service passando o ID da empresa
+        List<ProdutoEntity> produtos = service.listarPorEmpresa(idEmpresaLogada);
+        
+        return ResponseEntity.ok(produtos);
     }
 
     @PostMapping
-    public ResponseEntity<?> criar(@RequestBody ProdutoEntity Produto) {
-        try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(service.salvar(Produto));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<ProdutoEntity> salvar(@RequestBody ProdutoEntity produto) {
+        // 1. Pescamos o usuário logado
+        var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        
+        // 2. Extraímos a empresa
+        Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
+        
+        // Manda o produto e a empresa para o Service
+        ProdutoEntity produtoSalvo = service.salvar(produto, idEmpresaLogada);
+        
+        return ResponseEntity.ok(produtoSalvo);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> atualizar(@PathVariable Long id, @RequestBody ProdutoEntity Produto) {
-        try {
-            return ResponseEntity.ok(service.atualizar(id, Produto));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<ProdutoEntity> atualizar(@PathVariable Long id, @RequestBody ProdutoEntity produto) {
+        // 1. Pescamos o usuário logado
+        var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        
+        // 2. Extraímos a empresa
+        Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
+        
+        // Garante que o produto vai ser atualizado no ID correto
+        produto.setCodProduto(id); 
+        
+        // Chama o Service passando a empresa
+        ProdutoEntity produtoAtualizado = service.salvar(produto, idEmpresaLogada);
+        
+        return ResponseEntity.ok(produtoAtualizado);
     }
 
     @GetMapping("/pesquisar")

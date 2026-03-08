@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.io.Serializable;
 
 @Entity
@@ -31,5 +33,10 @@ public class ProdutoEntity implements Serializable {
 
     @Column(name = "valor", nullable = false)
     private BigDecimal valor;
+
+    @ManyToOne
+    @JoinColumn(name = "empresa_id")
+    @JsonIgnore
+    private EmpresaEntity empresa;
 
 }

@@ -21,45 +21,6 @@ public class VendaRequestDTO {
     private BigDecimal valorPix;
     private BigDecimal valorCredito;
     private BigDecimal valorDebito;
-
-    public Integer getQtdParcelas() {
-        return qtdParcelas;
-    }
-
-    public void setQtdParcelas(Integer qtdParcelas) {
-        this.qtdParcelas = qtdParcelas;
-    }
-
-    public BigDecimal getDesconto() {
-        return desconto;
-    }
-
-    public void setDesconto(BigDecimal desconto) {
-        this.desconto = desconto;
-    }
-
-    public BigDecimal getAcrescimo() {
-        return acrescimo;
-    }
-
-    public void setAcrescimo(BigDecimal acrescimo) {
-        this.acrescimo = acrescimo;
-    }
-
-    public List<ItemVendaDTO> getItens() {
-        return itens;
-    }
-
-    public void setItens(List<ItemVendaDTO> itens) {
-        this.itens = itens;
-    }
-
-    public BigDecimal getValorPago() { 
-        return valorPago; 
-    }
-
-    public void setValorPago(BigDecimal valorPago) { 
-        this.valorPago = valorPago; 
-    }
-
+    
+    // O empresaId foi removido. O Controller é quem vai injetar isso de forma segura!
 }

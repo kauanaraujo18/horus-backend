@@ -1,10 +1,12 @@
 package com.horus.projeto.controllers;
 
 import com.horus.projeto.dto.VendaRequestDTO;
+import com.horus.projeto.entities.UsuarioEntity;
 import com.horus.projeto.entities.VendaEntity;
 import com.horus.projeto.services.VendaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import com.horus.projeto.dto.VendaResponseDTO;
@@ -21,8 +23,17 @@ public class VendaController {
     @PostMapping
     public ResponseEntity<?> registrarVenda(@RequestBody VendaRequestDTO vendaDTO) {
         try {
-            VendaEntity novaVenda = vendaService.registrarVenda(vendaDTO);
+            // 1. Pescamos o usuário logado
+            var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            
+            // 2. Extraímos a empresa
+            Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
+
+            // Passamos o DTO e a Empresa simulada para a regra de negócio
+            VendaEntity novaVenda = vendaService.registrarVenda(vendaDTO, idEmpresaLogada);
+            
             return ResponseEntity.ok("Venda registrada com sucesso! Código: " + novaVenda.getCodVenda());
+            
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body("Erro ao registrar venda: " + e.getMessage());
         } catch (Exception e) {
@@ -33,7 +44,12 @@ public class VendaController {
 
     @GetMapping
     public ResponseEntity<List<VendaResponseDTO>> listarVendas() {
-        List<VendaResponseDTO> lista = vendaService.listarTodasVendas();
-        return ResponseEntity.ok(lista);
+        // 1. Pescamos o usuário logado
+        var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        
+        // 2. Extraímos a empresa
+        Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
+        
+        return ResponseEntity.ok(vendaService.listarPorEmpresa(idEmpresaLogada));
     }
 }

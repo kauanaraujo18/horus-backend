@@ -79,13 +79,31 @@ document.addEventListener('DOMContentLoaded', () => {
             if (termo.length < 2) return;
             
             timeoutBusca = setTimeout(async () => {
+                // 1. MÁGICA DE SEGURANÇA: Pega o crachá da carteira
+                const token = localStorage.getItem('tokenHorus');
+
                 try {
                     console.log("Buscando por:", termo); // Debug
-                    const res = await fetch(`${API_URL}/api/produtos?nome=${encodeURIComponent(termo)}`);
+                    
+                    // 2. INJETA O CRACHÁ NO CABEÇALHO DO FETCH
+                    const res = await fetch(`${API_URL}/api/produtos?nome=${encodeURIComponent(termo)}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}` // <- A catraca do Caixa foi liberada aqui!
+                        }
+                    });
                     
                     if(res.ok) {
                         const produtos = await res.json();
                         renderizarBusca(produtos);
+                    } else {
+                        console.error("Erro na busca: Token inválido ou produto não encontrado.");
+                        // Opcional: Mostrar uma mensagem amigável no modal se der erro
+                        const listaResultados = document.getElementById('listaResultadosModal');
+                        if (listaResultados) {
+                            listaResultados.innerHTML = '<p style="padding:10px; text-align:center; color:red;">Erro ao buscar produtos. Verifique sua conexão ou login.</p>';
+                        }
                     }
                 } catch(e) { 
                     console.error("Erro busca:", e); 
@@ -261,9 +279,8 @@ async function realizarLoginVisual() {
     }
 
     try {
-        // B. Chamada ao Backend (Service que criamos)
-        // Certifique-se que API_URL está declarada no início do arquivo (ex: https://horus-api-cjb4.onrender.com)
-        const response = await fetch(`${API_URL}/api/usuarios/login`, {
+        // B. Chamada ao Backend
+        const response = await fetch(`${API_URL}/api/login`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json' 
@@ -277,27 +294,31 @@ async function realizarLoginVisual() {
         // C. Processa a Resposta
         if (response.ok) {
             // --- SUCESSO ---
-            const usuario = await response.json();
-            usuarioLogado = usuario; // Salva na memória global
-            console.log("Acesso autorizado para:", usuario.nome);
+            // 1. Converte a resposta do Java para um objeto JavaScript
+            const dados = await response.json(); 
+            
+            // 2. A MÁGICA REAL: Salva o token na memória do navegador!
+            localStorage.setItem('tokenHorus', dados.token); 
+            
+            console.log("Login autorizado! Token salvo com sucesso.");
 
-            // Animação de Sucesso (Igual a anterior)
+            // Animação de Sucesso
             if (loginOverlay) {
-                loginOverlay.classList.add('unlocked'); // Sobe a tela
+                loginOverlay.classList.add('unlocked'); 
 
                 // Limpeza final após a animação (800ms)
                 setTimeout(() => {
                     loginOverlay.style.display = 'none';
                     
-                    // Opcional: Mostrar saudação
-                    // alert(`Bem-vindo, ${usuario.nome}!`);
+                    // IMPORTANTE: Como o login deu certo, aqui você já pode chamar
+                    // a função que busca os produtos automaticamente!
+                    // buscarProdutosAPI(); 
                 }, 800);
             }
 
         } else {
             // --- ERRO (401 ou 403) ---
-            const msgErro = await response.text();
-            alert("Falha ao entrar: " + msgErro);
+            alert("Falha ao entrar: Usuário ou senha incorretos.");
             
             // Restaura o botão
             if (btnEntrar) {

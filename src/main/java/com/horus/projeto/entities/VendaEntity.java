@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity
 @Table(name = "venda")
 @Data // Gera Getters, Setters, toString, equals e hashcode
@@ -74,6 +76,11 @@ public class VendaEntity implements Serializable {
     public void setUsuario(UsuarioEntity usuario) { this.usuario = usuario; }
 
     // --- Métodos Auxiliares (Hooks do JPA) ---
+
+    @ManyToOne
+    @JoinColumn(name = "empresa_id")
+    @JsonIgnore
+    private EmpresaEntity empresa;
 
     @PrePersist
     public void prePersist() {

@@ -3,6 +3,7 @@
    ================================================================================= */
 // Ajuste a URL conforme seu backend. Se não tiver "/api" no application.properties, remova.
 const API_URL = "https://horus-api-cjb4.onrender.com"; 
+//const API_URL = "http://localhost:8080";
 let contadorCascata = 0; 
 const deslocamentoPx = 30;
 

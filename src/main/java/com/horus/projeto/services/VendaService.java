@@ -4,11 +4,14 @@ import com.horus.projeto.dto.ItemVendaDTO;
 import com.horus.projeto.dto.ItemVendaResponseDTO;
 import com.horus.projeto.dto.VendaRequestDTO;
 import com.horus.projeto.dto.VendaResponseDTO;
+import com.horus.projeto.entities.EmpresaEntity;
 import com.horus.projeto.entities.ProdutoEntity;
 import com.horus.projeto.entities.ProdutoVendaEntity;
 import com.horus.projeto.entities.VendaEntity;
+import com.horus.projeto.repositories.EmpresaRepository;
 import com.horus.projeto.repositories.ProdutoRepository;
 import com.horus.projeto.repositories.VendaRepository;
+import com.horus.projeto.repositories.EmpresaRepository;
 
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,8 +34,11 @@ public class VendaService {
     @Autowired
     private ProdutoRepository produtoRepository;
 
+    @Autowired
+    private EmpresaRepository empresaRepository;
+
     @Transactional
-    public VendaEntity registrarVenda(VendaRequestDTO dadosVenda) {
+    public VendaEntity registrarVenda(VendaRequestDTO dadosVenda, Long empresaId) {
         
         // ==========================================
         // 1. PREPARAR O CABEÇALHO DA VENDA
@@ -135,17 +141,34 @@ public class VendaService {
         }
         venda.setTroco(trocoCalculado);
 
+        // 1. Busca a empresa no banco de dados
+        EmpresaEntity empresa = empresaRepository.getReferenceById(empresaId);
+        
+        // 2. Amarra a empresa na venda principal
+        venda.setEmpresa(empresa);
+
+        // 3. Garante que todos os itens da venda saibam a qual venda eles pertencem
+        // (Isso evita aquele erro clássico de "venda_id null" na tabela de itens)
+        if (venda.getItens() != null) {
+            venda.getItens().forEach(item -> item.setVenda(venda));
+        }
+
         // ==========================================
         // 5. SALVAR NO BANCO (CASCATA SALVA ITENS)
         // ==========================================
         return vendaRepository.save(venda);
     }
 
-    public List<VendaResponseDTO> listarTodasVendas() {
-        // Busca todas as vendas ordenadas pela Data (Mais recentes primeiro)
-        List<VendaEntity> vendas = vendaRepository.findAll(Sort.by(Sort.Direction.DESC, "dataVenda"));
+// 1. Mudamos o nome do método e adicionamos o parâmetro da empresa
+    public List<VendaResponseDTO> listarPorEmpresa(Long empresaId) {
+        
+        // 2. Trocamos o findAll pelo findByEmpresaId, mantendo a ordenação
+        List<VendaEntity> vendas = vendaRepository.findByEmpresaId(
+            empresaId, 
+            Sort.by(Sort.Direction.DESC, "dataVenda")
+        );
 
-        // Converte de Entity para DTO
+        // Converte de Entity para DTO (O resto do seu código continua brilhante e intacto)
         return vendas.stream().map(venda -> {
             VendaResponseDTO dto = new VendaResponseDTO();
             
