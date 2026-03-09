@@ -11,7 +11,7 @@ import com.horus.projeto.entities.VendaEntity;
 import com.horus.projeto.repositories.EmpresaRepository;
 import com.horus.projeto.repositories.ProdutoRepository;
 import com.horus.projeto.repositories.VendaRepository;
-import com.horus.projeto.repositories.EmpresaRepository;
+
 
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -28,7 +28,7 @@ public class SecurityConfigurations {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(req -> {
                     // Libera o acesso público apenas para a rota de Login
-                    req.requestMatchers(HttpMethod.POST, "/api/usuarios/login").permitAll();
+                    req.requestMatchers(HttpMethod.POST, "/api/login").permitAll();
                     
                     // Libera as requisições de "pré-voo" do navegador (CORS) para o seu Frontend separado
                     req.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
