@@ -310,8 +310,6 @@ async function finalizarVenda() {
     
     const totalPago = vDin + vPix + vCred + vDeb;
 
-    // Validação: Se pagou menos que o total
-    // Nota: Permite totalPago = 0 se você quiser permitir venda fiado, senão mantenha a validação abaixo
     if (totalPago < totalFinal) {
         alert(`Pagamento insuficiente!\nTotal Venda: ${formatarMoeda(totalFinal)}\nPago: ${formatarMoeda(totalPago)}\nFalta: ${formatarMoeda(totalFinal - totalPago)}`);
         return;
@@ -322,20 +320,18 @@ async function finalizarVenda() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ...';
     btn.disabled = true;
 
+    // --- MÁGICA DE SEGURANÇA 1: Pega o crachá ---
+    const token = localStorage.getItem('tokenHorus');
+
     try {
         const vendaDTO = {
             qtdParcelas: parseInt(document.getElementById('inputParcelas').value) || 1,
             desconto: desc,
             acrescimo: acresc,
-            
-            // Novos campos discriminados
             valorDinheiro: vDin,
             valorPix: vPix,
             valorCredito: vCred,
             valorDebito: vDeb,
-            
-            // O Backend vai somar isso para definir o valorPago e Troco
-            
             itens: carrinho.map(item => ({
                 codProduto: item.codProduto,
                 quantidade: item.quantidade,
@@ -345,7 +341,11 @@ async function finalizarVenda() {
 
         const response = await fetch(`${API_URL}/api/vendas`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                // --- MÁGICA DE SEGURANÇA 2: Injeta o crachá ---
+                'Authorization': `Bearer ${token}` 
+            },
             body: JSON.stringify(vendaDTO)
         });
 
@@ -366,10 +366,8 @@ async function finalizarVenda() {
             document.getElementById('inputPagCredito').value = '';
             document.getElementById('inputPagDebito').value = '';
             
-            // Zera totais
             calcularTotaisCaixa();
             
-            // Foco
             const leitor = document.getElementById('inputCodigoBarras');
             if(leitor && document.getElementById('painelLeitorBarras').style.display !== 'none') leitor.focus();
             else document.getElementById('caixaBuscaProduto').focus();

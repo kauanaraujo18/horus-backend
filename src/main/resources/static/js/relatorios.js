@@ -115,8 +115,18 @@ async function carregarProdutosParaFiltro() {
 
     divLista.innerHTML = '<span style="font-size:12px; color:#666;">Carregando produtos...</span>';
 
+    // 1. AQUI ESTÁ A MÁGICA: Pegamos o crachá do usuário logado
+    const token = localStorage.getItem('tokenHorus');
+
     try {
-        const res = await fetch(`${API_URL}/api/produtos`);
+        // 2. INJETAMOS O CRACHÁ NO CABEÇALHO DA REQUISIÇÃO
+        const res = await fetch(`${API_URL}/api/produtos`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
         if(!res.ok) throw new Error("Erro ao buscar produtos");
 
         const produtos = await res.json();
@@ -145,7 +155,7 @@ async function carregarProdutosParaFiltro() {
         });
     } catch (e) {
         console.error(e);
-        divLista.innerHTML = '<span style="color:red; font-size:12px">Erro de conexão.</span>';
+        divLista.innerHTML = '<span style="color:red; font-size:12px">Erro de conexão ou acesso negado.</span>';
     }
 }
 
@@ -167,35 +177,38 @@ async function gerarRelatorioVendasPDF() {
     const dataFim = document.getElementById('relDataFim').value;
     const formaPagamento = document.getElementById('relFormaPagamento').value;
     
-    // Pega IDs dos produtos selecionados
     const checkboxes = document.querySelectorAll('input[name="prodFiltro"]:checked');
-    const produtosSelecionados = Array.from(checkboxes).map(c => String(c.value)); // Converte para String para garantir comparação
+    const produtosSelecionados = Array.from(checkboxes).map(c => String(c.value)); 
 
-    // Validações
     if (!dataInicio || !dataFim) { alert("Selecione o período."); return; }
     if (produtosSelecionados.length === 0) { alert("Selecione pelo menos um produto."); return; }
 
-    // Feedback visual no botão
-    const btn = document.querySelector('#formRelatorioVendas button'); // O botão de gerar
+    const btn = document.querySelector('#formRelatorioVendas button'); 
     const txtOriginal = btn ? btn.innerHTML : 'Gerar';
     if(btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
 
+    // --- MÁGICA DE SEGURANÇA 1: Pega o crachá ---
+    const token = localStorage.getItem('tokenHorus');
+
     try {
-        // 2. Busca TODAS as vendas (Idealmente seria filtrado no backend, mas faremos aqui)
-        const res = await fetch(`${API_URL}/api/vendas`); 
+        // --- MÁGICA DE SEGURANÇA 2: Injeta o crachá no GET ---
+        const res = await fetch(`${API_URL}/api/vendas`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        }); 
+        
         if(!res.ok) throw new Error("Erro ao buscar vendas na API");
         
         const todasVendas = await res.json();
 
         // 3. FILTRAGEM AVANÇADA
         const vendasFiltradas = todasVendas.filter(venda => {
-            // Formata data da venda para YYYY-MM-DD
             const dataVenda = new Date(venda.dataVenda).toISOString().split('T')[0];
             
-            // A. Filtro Data
             if (dataVenda < dataInicio || dataVenda > dataFim) return false;
 
-            // B. Filtro Pagamento (Verifica se houve valor > 0 na modalidade escolhida)
             if (formaPagamento !== "TODAS") {
                 if (formaPagamento === "DINHEIRO" && (!venda.valorDinheiro || venda.valorDinheiro <= 0)) return false;
                 if (formaPagamento === "PIX" && (!venda.valorPix || venda.valorPix <= 0)) return false;
@@ -203,8 +216,6 @@ async function gerarRelatorioVendasPDF() {
                 if (formaPagamento === "DEBITO" && (!venda.valorDebito || venda.valorDebito <= 0)) return false;
             }
 
-            // C. Filtro Produtos (A venda contém ALGUM dos produtos marcados?)
-            // Verifica nos itens da venda
             const temProdutoSelecionado = venda.itens.some(item => {
                 const idProdItem = String(item.codProduto || item.produto?.codProduto || item.produto?.id);
                 return produtosSelecionados.includes(idProdItem);
@@ -225,10 +236,8 @@ async function gerarRelatorioVendasPDF() {
 
         vendasFiltradas.forEach(venda => {
             totalGeralPeriodo += venda.valorTotal;
-            
             const dataF = new Date(venda.dataVenda).toLocaleString('pt-BR');
 
-            // Detalhes Pagamento (Quais meios foram usados nesta venda)
             let pagtos = [];
             if(venda.valorDinheiro > 0) pagtos.push(`Dinheiro`);
             if(venda.valorPix > 0) pagtos.push(`PIX`);
@@ -237,7 +246,6 @@ async function gerarRelatorioVendasPDF() {
             
             const textoPagto = pagtos.length > 0 ? pagtos.join(', ') : 'Não informado';
 
-            // Monta HTML da Venda
             htmlConteudo += `
                 <div class="venda-box">
                     <div class="venda-header">
@@ -282,22 +290,15 @@ async function gerarRelatorioVendasPDF() {
                     .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
                     .header h1 { margin: 0; font-size: 18px; text-transform: uppercase; }
                     .filtros { margin-bottom: 20px; background: #f8f9fa; padding: 10px; border-radius: 4px; border: 1px solid #ddd; font-size: 11px; }
-                    
                     .venda-box { border: 1px solid #ccc; margin-bottom: 15px; page-break-inside: avoid; border-radius: 4px; overflow: hidden; }
                     .venda-header { background: #e9ecef; padding: 8px 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #ddd; }
                     .venda-info { padding: 4px 10px; font-size: 10px; color: #666; background: #fff; border-bottom: 1px solid #eee; }
-                    
                     .tabela-itens { width: 100%; border-collapse: collapse; }
                     .tabela-itens th { background: #fff; text-align: left; padding: 4px 10px; font-size: 10px; color: #888; border-bottom: 1px solid #eee; }
                     .tabela-itens td { padding: 4px 10px; border-bottom: 1px solid #f9f9f9; font-size: 11px; }
                     .tabela-itens tr:last-child td { border-bottom: none; }
-                    
                     .total-geral { text-align: right; font-size: 16px; margin-top: 20px; font-weight: bold; padding: 10px; background: #333; color: #fff; border-radius: 4px; }
-                    
-                    @media print {
-                        body { padding: 0; }
-                        .no-print { display: none; }
-                    }
+                    @media print { body { padding: 0; } .no-print { display: none; } }
                 </style>
             </head>
             <body>
@@ -305,23 +306,16 @@ async function gerarRelatorioVendasPDF() {
                     <h1>Relatório Analítico de Vendas</h1>
                     <small>Sistema Horus</small>
                 </div>
-                
                 <div class="filtros">
                     <b>Período:</b> ${dataInicio.split('-').reverse().join('/')} até ${dataFim.split('-').reverse().join('/')} <br>
                     <b>Pagamento:</b> ${formaPagamento} <br>
                     <b>Emissão:</b> ${new Date().toLocaleString()}
                 </div>
-
                 ${htmlConteudo}
-
                 <div class="total-geral">
                     TOTAL VENDIDO NO PERÍODO: ${formatarMoeda(totalGeralPeriodo)}
                 </div>
-
-                <script>
-                    // Manda imprimir assim que carregar
-                    window.onload = function() { window.print(); }
-                </script>
+                <script> window.onload = function() { window.print(); } </script>
             </body>
             </html>
         `);
