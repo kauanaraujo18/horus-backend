@@ -1,10 +1,12 @@
 package com.horus.projeto.services;
 
 import com.horus.projeto.entities.ProdutoEntity;
+import com.horus.projeto.entities.UsuarioEntity;
 import com.horus.projeto.repositories.ProdutoRepository;
 import com.itextpdf.text.*;
 import com.itextpdf.text.pdf.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -26,6 +28,19 @@ public class EtiquetaService {
         ProdutoEntity produto = repository.findById(codProduto)
                 .orElseThrow(() -> new RuntimeException("Produto não encontrado. ID: " + codProduto));
 
+        // ==========================================
+        // 🛡️ BLINDAGEM MULTI-TENANT (SaaS)
+        // ==========================================
+        // Captura o usuário logado no momento da requisição
+        var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
+
+        // Verifica se a empresa dona do produto é a mesma do usuário logado
+        if (!produto.getEmpresa().getId().equals(idEmpresaLogada)) {
+            throw new RuntimeException("Acesso Negado: Este produto pertence a outra empresa.");
+        }
+        // ==========================================
+
         // 2. Configura PDF
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Document document = new Document(PageSize.A4, 0, 0, 0, 0);
@@ -41,14 +56,14 @@ public class EtiquetaService {
         Font fontePreco = new Font(Font.FontFamily.HELVETICA, 12, Font.BOLD, BaseColor.WHITE);
         Font fonteErro = new Font(Font.FontFamily.HELVETICA, 8, Font.ITALIC, BaseColor.RED);
 
-        // 3. Formatação de Preço Segura (Evita o erro IllegalArgumentException)
+        // 3. Formatação de Preço Segura
         String textoValor;
         if (produto.getValor() != null) {
             @SuppressWarnings("deprecation")
             NumberFormat formatoMoeda = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
             textoValor = formatoMoeda.format(produto.getValor());
         } else {
-            textoValor = "R$ --,--"; // Fallback se o valor for NULL no banco
+            textoValor = "R$ --,--"; 
         }
 
         // 4. Loop de Etiquetas
@@ -100,7 +115,7 @@ public class EtiquetaService {
                 PdfContentByte cb = writer.getDirectContent();
                 BarcodeEAN codeEAN = new BarcodeEAN();
                 codeEAN.setCodeType(Barcode.EAN13);
-                codeEAN.setCode(produto.getCodigo()); // Passa a String direto
+                codeEAN.setCode(produto.getCodigo()); 
                 
                 Image imageEAN = codeEAN.createImageWithBarcode(cb, BaseColor.BLACK, BaseColor.BLACK);
                 imageEAN.scalePercent(130); 
@@ -126,7 +141,6 @@ public class EtiquetaService {
 
     private boolean isEan13Valid(String codigo) {
         if (codigo == null) return false;
-        // Aceita apenas números e deve ter 12 ou 13 dígitos
         return codigo.matches("\\d{12,13}");
     }
 }

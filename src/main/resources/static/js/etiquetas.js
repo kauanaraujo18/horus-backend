@@ -109,7 +109,6 @@ async function handleEtiquetaSubmit(e) {
     e.preventDefault(); 
     const idProduto = document.getElementById('etiquetaIdProduto').value;
     const qtdCopias = document.getElementById('etiquetaQtdCopias').value;
-    // ... restante da lógica de fetch/pdf igual ...
     
     if (!idProduto) {
         alert("Selecione um produto primeiro!");
@@ -118,19 +117,35 @@ async function handleEtiquetaSubmit(e) {
     
     const btnSubmit = e.target.querySelector('button[type="submit"]');
     const textoOriginal = btnSubmit.innerHTML;
-    btnSubmit.innerHTML = 'Gerando...';
+    btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
+    
+    // --- 1. Resgata o Token do armazenamento local ---
+    const token = localStorage.getItem('tokenHorus');
     
     try {
-        const response = await fetch(`${API_URL}/api/etiquetas/gerar/${idProduto}?qtd=${qtdCopias}`);
+        // --- 2. Injeta o cabeçalho de Autorização no fetch ---
+        const response = await fetch(`${API_URL}/api/etiquetas/gerar/${idProduto}?qtd=${qtdCopias}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}` 
+            }
+        });
+
         if(response.ok) {
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             window.open(url, '_blank');
+            
+            // Boa prática: limpa a URL temporária da memória após 5 segundos
+            setTimeout(() => window.URL.revokeObjectURL(url), 5000);
         } else {
-            alert('Erro ao gerar');
+            // Captura o erro do backend (se houver) para facilitar o debug
+            const erroTxt = await response.text();
+            alert(`Erro ao gerar etiqueta: ${erroTxt || 'Acesso Negado / Falha no servidor'}`);
         }
     } catch(err) {
-        console.error(err);
+        console.error("Erro na requisição de etiquetas:", err);
+        alert("Erro de conexão ao tentar gerar a etiqueta.");
     } finally {
         btnSubmit.innerHTML = textoOriginal;
     }
