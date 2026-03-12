@@ -24,24 +24,28 @@ public class EtiquetaService {
 
     public byte[] gerarEtiquetasPorId(Long codProduto, int quantidade) throws DocumentException, IOException {
         
-        // 1. Busca no Banco
+        // ==========================================
+        // 🛡️ 1. TRAVA DE PERFORMANCE E SEGURANÇA (Limite de 320)
+        // ==========================================
+        if (quantidade > 320) {
+            throw new IllegalArgumentException("O limite máximo permitido é de 320 etiquetas por impressão.");
+        }
+
+        // 2. Busca o Produto no Banco
         ProdutoEntity produto = repository.findById(codProduto)
                 .orElseThrow(() -> new RuntimeException("Produto não encontrado. ID: " + codProduto));
 
         // ==========================================
-        // 🛡️ BLINDAGEM MULTI-TENANT (SaaS)
+        // 🛡️ 3. BLINDAGEM MULTI-TENANT (Isolamento de Empresas)
         // ==========================================
-        // Captura o usuário logado no momento da requisição
         var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
 
-        // Verifica se a empresa dona do produto é a mesma do usuário logado
         if (!produto.getEmpresa().getId().equals(idEmpresaLogada)) {
             throw new RuntimeException("Acesso Negado: Este produto pertence a outra empresa.");
         }
-        // ==========================================
 
-        // 2. Configura PDF
+        // 4. Configuração Inicial do PDF
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Document document = new Document(PageSize.A4, 0, 0, 0, 0);
         PdfWriter writer = PdfWriter.getInstance(document, out);
@@ -49,14 +53,16 @@ public class EtiquetaService {
 
         PdfPTable table = new PdfPTable(4);
         table.setWidthPercentage(100);
-        float alturaCelula = document.getPageSize().getHeight() / 4f;
+        
+        // Ajuste de layout: remove 1 pixel da altura para evitar quebra de página errada
+        float alturaCelula = (document.getPageSize().getHeight() / 4f) - 1f;
 
-        // Fontes
+        // Fontes do PDF
         Font fonteProduto = new Font(Font.FontFamily.HELVETICA, 10, Font.NORMAL, BaseColor.WHITE);
         Font fontePreco = new Font(Font.FontFamily.HELVETICA, 12, Font.BOLD, BaseColor.WHITE);
         Font fonteErro = new Font(Font.FontFamily.HELVETICA, 8, Font.ITALIC, BaseColor.RED);
 
-        // 3. Formatação de Preço Segura
+        // 5. Formatação Segura de Moeda
         String textoValor;
         if (produto.getValor() != null) {
             @SuppressWarnings("deprecation")
@@ -66,7 +72,20 @@ public class EtiquetaService {
             textoValor = "R$ --,--"; 
         }
 
-        // 4. Loop de Etiquetas
+        // ==========================================
+        // 🚀 6. OTIMIZAÇÃO: Cache da Logo na Memória
+        // ==========================================
+        // Fazemos o download da logo APENAS UMA VEZ antes do laço iniciar.
+        Image logoCache = null;
+        try {
+            logoCache = Image.getInstance(CAMINHO_LOGO);
+            logoCache.scaleToFit(80, 40);
+            logoCache.setAlignment(Element.ALIGN_CENTER);
+        } catch (Exception e) {
+            System.out.println("Aviso: Não foi possível carregar a logo das etiquetas.");
+        }
+
+        // 7. Geração em Lote das Etiquetas
         for (int i = 0; i < quantidade; i++) {
             PdfPCell cell = new PdfPCell();
             cell.setFixedHeight(alturaCelula);
@@ -77,14 +96,9 @@ public class EtiquetaService {
             cell.setHorizontalAlignment(Element.ALIGN_CENTER);
             cell.setPadding(10);
 
-            // LOGO
-            try {
-                Image img = Image.getInstance(CAMINHO_LOGO);
-                img.scaleToFit(80, 40);
-                img.setAlignment(Element.ALIGN_CENTER);
-                cell.addElement(img);
-            } catch (Exception e) {
-                // Ignora imagem se der erro
+            // LOGO: Usa a imagem já salva na variável logoCache
+            if (logoCache != null) {
+                cell.addElement(logoCache);
             }
             cell.addElement(new Paragraph(" ")); 
 
@@ -110,7 +124,7 @@ public class EtiquetaService {
             barcodeCell.setPadding(5);
             barcodeCell.setPaddingBottom(8);
 
-            // Validação e Geração (Usando String direto)
+            // Validação EAN-13
             if (isEan13Valid(produto.getCodigo())) {
                 PdfContentByte cb = writer.getDirectContent();
                 BarcodeEAN codeEAN = new BarcodeEAN();

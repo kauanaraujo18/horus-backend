@@ -103,6 +103,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+
+
 // --- 4. ENVIO DO FORMULÁRIO (Igual ao anterior) ---
 // (Mantenha a função handleEtiquetaSubmit igual à resposta anterior)
 async function handleEtiquetaSubmit(e) {
@@ -112,6 +114,20 @@ async function handleEtiquetaSubmit(e) {
     
     if (!idProduto) {
         alert("Selecione um produto primeiro!");
+        return;
+    }
+    // ==========================================
+    // 🛡️ TRAVA DE LIMITE NO FRONTEND
+    // ==========================================
+    if (qtdCopias > 320) {
+        alert("O limite máximo permitido é de 320 etiquetas por impressão (20 páginas). Para mais cópias, divida a impressão.");
+        inputQtd.value = 320; // Ajusta automaticamente para o teto
+        return; // Interrompe a execução antes de chamar a API
+    }
+    
+    if (qtdCopias < 1 || isNaN(qtdCopias)) {
+        alert("A quantidade mínima é de 1 etiqueta.");
+        inputQtd.value = 1;
         return;
     }
     
