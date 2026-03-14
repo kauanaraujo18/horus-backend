@@ -59,13 +59,20 @@ async function processarCodigoBarras(codigo) {
     const input = document.getElementById('inputCodigoBarras');
     input.disabled = true; // Trava o input
 
+    // 🛡️ AQUI ESTÁ A CORREÇÃO: Resgata o token de segurança
+    const token = localStorage.getItem('tokenHorus');
+
     try {
-        // MUDANÇA AQUI: Chamamos a nova rota específica de código
-        // Ex: https://horus-api-cjb4.onrender.com/api/produtos/codigo/789123456
-        const res = await fetch(`${API_URL}/api/produtos/codigo/${encodeURIComponent(codigo)}`);
+        // MUDANÇA AQUI: Enviamos o cabeçalho de Autorização para o Backend
+        const res = await fetch(`${API_URL}/api/produtos/codigo/${encodeURIComponent(codigo)}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}` 
+            }
+        });
         
         if (res.ok) {
-            // Se deu status 200, é porque achou UM produto
+            // Se deu status 200, é porque achou UM produto da SUA empresa
             const produtoExato = await res.json();
             
             // Adiciona direto com quantidade 1 (automático)
@@ -77,9 +84,14 @@ async function processarCodigoBarras(codigo) {
             input.focus();
             
         } else if (res.status === 404) {
-            // Se deu status 404, não existe
+            // Se deu status 404, não existe na sua empresa
             alert("Produto não encontrado com este código: " + codigo);
             input.value = ''; 
+            input.disabled = false;
+            input.focus();
+        } else if (res.status === 403 || res.status === 401) {
+            // Proteção extra: se o token for inválido
+            alert("Sessão expirada ou acesso negado. Atualize a página e faça login novamente.");
             input.disabled = false;
             input.focus();
         } else {
