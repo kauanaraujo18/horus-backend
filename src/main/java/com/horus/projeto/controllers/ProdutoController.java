@@ -93,13 +93,18 @@ public class ProdutoController {
 
     @GetMapping("/codigo/{codigo}")
     public ResponseEntity<?> buscarPorCodigo(@PathVariable String codigo) {
-        // Tenta achar o produto
-        Optional<ProdutoEntity> produto = repository.findByCodigo(codigo);
+        
+        // 1. Captura o usuário logado e a empresa dele
+        var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
+
+        // 2. Tenta achar o produto pelo código E garantindo que é da empresa logada
+        Optional<ProdutoEntity> produto = repository.findByCodigoAndEmpresaId(codigo, idEmpresaLogada);
         
         if (produto.isPresent()) {
             return ResponseEntity.ok(produto.get());
         } else {
-            return ResponseEntity.notFound().build(); // Retorna Erro 404 se não achar
+            return ResponseEntity.notFound().build(); // Retorna Erro 404 se não achar ou se for de outra empresa
         }
     }
 
