@@ -312,8 +312,6 @@ async function finalizarVenda() {
     const subtotal = carrinho.reduce((acc, item) => acc + (item.quantidade * item.valorUnitario), 0);
     const desc = converterMoedaParaFloat(document.getElementById('inputDesconto').value);
     const acresc = converterMoedaParaFloat(document.getElementById('inputAcrescimo').value);
-    const totalFinal = subtotal + acresc - desc;
-    console.log(`Total final recalculado: ${totalFinal}`);
 
     // Pega os valores individuais
     const vDin = converterMoedaParaFloat(document.getElementById('inputPagDinheiro').value);
@@ -321,8 +319,11 @@ async function finalizarVenda() {
     const vCred = converterMoedaParaFloat(document.getElementById('inputPagCredito').value);
     const vDeb = converterMoedaParaFloat(document.getElementById('inputPagDebito').value);
     
-    const totalPago = vDin + vPix + vCred + vDeb;
-    console.log(`Total pago recalculado: ${totalPago}`);
+    const totalPagoBruto = vDin + vPix + vCred + vDeb;
+
+    // 🛡️ O SEGREDO DO CAIXA: Força os dois totais a terem exatamente 2 casas decimais
+    const totalFinal = Number((subtotal + acresc - desc).toFixed(2));
+    const totalPago = Number(totalPagoBruto.toFixed(2));
 
     if (totalPago < totalFinal) {
         alert(`Pagamento insuficiente!\nTotal Venda: ${formatarMoeda(totalFinal)}\nPago: ${formatarMoeda(totalPago)}\nFalta: ${formatarMoeda(totalFinal - totalPago)}`);
