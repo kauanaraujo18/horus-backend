@@ -313,6 +313,7 @@ async function finalizarVenda() {
     const desc = converterMoedaParaFloat(document.getElementById('inputDesconto').value);
     const acresc = converterMoedaParaFloat(document.getElementById('inputAcrescimo').value);
     const totalFinal = subtotal + acresc - desc;
+    console.log(`Total final recalculado: ${totalFinal}`);
 
     // Pega os valores individuais
     const vDin = converterMoedaParaFloat(document.getElementById('inputPagDinheiro').value);
@@ -321,6 +322,7 @@ async function finalizarVenda() {
     const vDeb = converterMoedaParaFloat(document.getElementById('inputPagDebito').value);
     
     const totalPago = vDin + vPix + vCred + vDeb;
+    console.log(`Total pago recalculado: ${totalPago}`);
 
     if (totalPago < totalFinal) {
         alert(`Pagamento insuficiente!\nTotal Venda: ${formatarMoeda(totalFinal)}\nPago: ${formatarMoeda(totalPago)}\nFalta: ${formatarMoeda(totalFinal - totalPago)}`);
