@@ -18,17 +18,11 @@ import java.util.Optional;
 @RequestMapping("/api/produtos")
 @RequiredArgsConstructor
 public class ProdutoController {
-
-    // Agora injetamos o SERVICE, não o REPOSITORY
+    
     private final ProdutoService service;
 
     @Autowired
     private ProdutoRepository repository;
-
-    // @GetMapping
-    // public ResponseEntity<List<ProdutoEntity>> listarTodos() {
-    //     return ResponseEntity.ok(service.listarTodos());
-    // }
 
     @GetMapping("/{id}")
     public ResponseEntity<ProdutoEntity> buscarPorId(@PathVariable Long id) {
