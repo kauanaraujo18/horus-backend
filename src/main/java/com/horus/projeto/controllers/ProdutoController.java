@@ -12,11 +12,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/produtos")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "*")
 public class ProdutoController {
     
     private final ProdutoService service;
@@ -76,6 +78,40 @@ public class ProdutoController {
         ProdutoEntity produtoAtualizado = service.salvar(produto, idEmpresaLogada);
         
         return ResponseEntity.ok(produtoAtualizado);
+    }
+
+    // ========================================================================
+    // NOVO ENDPOINT: ATUALIZAÇÃO PARCIAL (AJUSTE RÁPIDO DE ESTOQUE)
+    // ========================================================================
+    @PatchMapping("/{id}")
+    public ResponseEntity<ProdutoEntity> atualizarEstoqueParcial(@PathVariable Long id, @RequestBody Map<String, Integer> payload) {
+        try {
+            // 1. Pescamos o usuário logado para garantir a segurança
+            var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
+
+            // 2. Busca o produto existente no banco
+            ProdutoEntity produtoExistente = service.buscarPorId(id);
+
+            // 3. Validação de Segurança: Garante que o produto pertence à empresa logada
+            if (!produtoExistente.getEmpresa().getId().equals(idEmpresaLogada)) {
+                return ResponseEntity.status(403).build(); // Forbidden
+            }
+
+            // 4. Faz a atualização cirúrgica apenas do campo enviado
+            if (payload.containsKey("quantidadeEstoque")) {
+                produtoExistente.setQuantidadeEstoque(payload.get("quantidadeEstoque"));
+                
+                // Salvamos direto pelo repository para não acionar as validações de código (EAN) do Service de atualização completa
+                ProdutoEntity produtoAtualizado = repository.save(produtoExistente);
+                return ResponseEntity.ok(produtoAtualizado);
+            }
+
+            return ResponseEntity.badRequest().build();
+            
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @GetMapping("/pesquisar")

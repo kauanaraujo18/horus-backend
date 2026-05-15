@@ -16,7 +16,7 @@ import java.util.List;
 public class ProdutoService {
 
     private final ProdutoRepository repository;
-    private final EmpresaRepository empresaRepository; // O Spring injeta automaticamente pelo RequiredArgsConstructor
+    private final EmpresaRepository empresaRepository; 
 
     public List<ProdutoEntity> listarPorEmpresa(Long empresaId) {
         return repository.findByEmpresaId(empresaId);
@@ -27,23 +27,21 @@ public class ProdutoService {
                 .orElseThrow(() -> new RuntimeException("Produto não encontrado com o ID: " + id));
     }
 
-    // --- MÉTODOS DE ESCRITA ---
-
     @Transactional
     public ProdutoEntity salvar(ProdutoEntity produto, Long empresaId) {
-        // INTELIGÊNCIA APLICADA: Se o produto veio com ID preenchido, significa que o 
-        // Controller mandou uma EDIÇÃO para cá. Redirecionamos para o método correto!
         if (produto.getCodProduto() != null) {
             return atualizar(produto.getCodProduto(), produto);
         }
 
-        // Regra de Negócio: Não permitir Codigo duplicado para produtos NOVOS
         if (repository.existsByCodigo(produto.getCodigo())) {
             throw new IllegalArgumentException("Erro: Já existe um Produto cadastrado com este Codigo.");
         }
 
         EmpresaEntity empresa = empresaRepository.getReferenceById(empresaId);
         produto.setEmpresa(empresa);
+        
+        // A anotação @PrePersist na Entity cuidará de definir null como 0, 
+        // mas se o usuário enviar a quantidade (ex: 10), ela será respeitada e salva.
 
         return repository.save(produto);
     }
@@ -52,17 +50,20 @@ public class ProdutoService {
     public ProdutoEntity atualizar(Long id, ProdutoEntity produtoAtualizada) {
         ProdutoEntity produtoExistente = buscarPorId(id); 
 
-        // Regra de Negócio: Só checamos se o código existe se o usuário TROCOU o código na tela
         if (!produtoExistente.getCodigo().equals(produtoAtualizada.getCodigo())) {
             if (repository.existsByCodigo(produtoAtualizada.getCodigo())) {
                 throw new IllegalArgumentException("Erro: Já existe um Produto cadastrado com este Codigo.");
             }
         }
 
-        // Atualização dos dados (Não precisamos setar a empresa de novo, pois já está no banco)
         produtoExistente.setCodigo(produtoAtualizada.getCodigo());
         produtoExistente.setNome(produtoAtualizada.getNome());
         produtoExistente.setValor(produtoAtualizada.getValor());
+        
+        // Atualiza a quantidade manualmente se o usuário alterar na tela de produtos
+        if(produtoAtualizada.getQuantidadeEstoque() != null) {
+             produtoExistente.setQuantidadeEstoque(produtoAtualizada.getQuantidadeEstoque());
+        }
 
         return repository.save(produtoExistente);
     }
