@@ -24,5 +24,10 @@ public class EmpresaEntity {
     @Column(unique = true, length = 18)
     private String cnpj;
 
-    private Boolean ativo = true; 
+    private Boolean ativo = true;
+
+    public String getNome() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getNome'");
+    } 
 }

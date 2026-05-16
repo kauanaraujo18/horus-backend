@@ -13,39 +13,54 @@ import org.springframework.web.bind.annotation.*;
 @CrossOrigin(origins = "*") // Libera acesso do Front
 public class UsuarioController {
 
-    // 1. Injetamos o motor oficial de autenticação (que usa o BCrypt!)
     @Autowired
     private AuthenticationManager manager;
 
     @Autowired
     private TokenService tokenService;
 
-    // 2. A MÁGICA: O endpoint exato que o seu JS está chamando
     @PostMapping("/api/login")
     public ResponseEntity<?> login(@RequestBody LoginRequestDTO loginData) {
         try {
-            // O manager pega a senha real, criptografa e compara com o banco de dados
+            // 1. O manager valida o login e a senha no banco de dados
             var authenticationToken = new UsernamePasswordAuthenticationToken(loginData.getLogin(), loginData.getSenha());
             var authentication = manager.authenticate(authenticationToken);
             
-            // Se a senha estiver correta, gera e devolve o Token
+            // 2. Se a senha estiver correta, gera o Token
             var usuario = (UsuarioEntity) authentication.getPrincipal();
             var tokenJWT = tokenService.gerarToken(usuario);
             
-            return ResponseEntity.ok(new TokenResponse(tokenJWT));
+            // 3. Valores padrão seguros (caso algo falhe, o login não trava)
+            String nomeUsuario = usuario.getLogin(); 
+            String empresaNome = "Horus Workspace";
+
+            // Captura isolada do Nome do Usuário
+            try {
+                if (usuario.getNome() != null && !usuario.getNome().isEmpty()) {
+                    nomeUsuario = usuario.getNome();
+                }
+            } catch (Throwable t) {
+                // Se der qualquer erro ao ler o método getNome, ignora e mantém o login
+            }
+
+            // Captura isolada do Nome da Empresa (Protege contra LazyInitializationException)
+            try {
+                if (usuario.getEmpresa() != null) {
+                    empresaNome = usuario.getEmpresa().getRazaoSocial();
+                }
+            } catch (Throwable t) {
+                // Se der erro de carregamento da empresa, ignora e mantém o padrão
+            }
             
+            // 4. Retorna a resposta com os 3 dados que o Front-end precisa
+            return ResponseEntity.ok(new TokenResponse(tokenJWT, nomeUsuario, empresaNome));
+
         } catch (Exception e) {
-            System.out.println("Falha de autenticação: " + e.getMessage());
-            // Retorna 401 Unauthorized para o Front exibir a mensagem de "usuário ou senha incorretos"
+            System.out.println("Falha de autenticação real (Senha incorreta): " + e.getMessage());
             return ResponseEntity.status(401).body("Usuário ou senha incorretos.");
         }
     }
 
-    // Se no futuro você criar métodos para CADASTRAR ou LISTAR usuários, 
-    // basta criar os métodos aqui com a rota específica, por exemplo:
-    // @PostMapping("/api/usuarios")
-    // public ResponseEntity<?> salvarUsuario(...) { ... }
-
-    // Classe auxiliar para devolver o token no padrão exato que o seu JS espera {"token": "ey..."}
-    private record TokenResponse(String token) {}
+    // Record atualizado para carregar os dados que o seu plug do main.js espera receber
+    private record TokenResponse(String token, String nome, String empresaNome) {}
 }

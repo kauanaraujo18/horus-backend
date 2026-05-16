@@ -7,8 +7,8 @@
 /* ==========================================================================
    CONFIGURAÇÕES GLOBAIS
    ========================================================================== */
-const API_URL = "https://horus-api-cjb4.onrender.com";
-//const API_URL = "http://localhost:8080";
+//const API_URL = "https://horus-api-cjb4.onrender.com";
+const API_URL = "http://localhost:8080";
 let zIndexCounter = 100; // Controle de profundidade das janelas
 let cascadeOffset = 0;   // Controle de posição em cascata
 
@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
    MÓDULO 1: GATEKEEPER & AUTENTICAÇÃO
    ========================================================================== */
 function setupLoginSystem() {
+    carregarIdentificacaoSessao();
     const loginOverlay = document.getElementById('login-overlay');
     const formLogin = document.getElementById('formLogin');
     const btnLogout = document.querySelector('.btn-logout');
@@ -57,6 +58,9 @@ function setupLoginSystem() {
     if (btnLogout) {
         btnLogout.addEventListener('click', () => {
             localStorage.removeItem('tokenHorus');
+            // Limpa também os nomes ao sair:
+            localStorage.removeItem('horus_usuario_nome');
+            localStorage.removeItem('horus_empresa_nome');
             window.location.reload();
         });
     }
@@ -83,8 +87,22 @@ async function realizarLoginVisual() {
 
         if (response.ok) {
             const dados = await response.json();
+            
+            // 1. Salva o Token
             localStorage.setItem('tokenHorus', dados.token);
             
+            // 2. Extrai os Nomes
+            const nomeUser = dados.nome || dados.usuario || 'Operador';
+            const nomeEmp = dados.empresaNome || dados.empresa?.nome || 'Horus Gestão';
+            
+            // ==========================================
+            // O QUE FALTAVA: SALVAR E ATUALIZAR A TELA
+            // ==========================================
+            localStorage.setItem('horus_usuario_nome', nomeUser);
+            localStorage.setItem('horus_empresa_nome', nomeEmp);
+            atualizarBadgeIdentificacao(nomeEmp, nomeUser);
+            // ==========================================
+
             // Animação de desbloqueio Premium
             if (loginOverlay) {
                 loginOverlay.classList.add('unlocked');
@@ -1215,3 +1233,20 @@ async function gerarRelatorioVendasPDF() {
         }
     }
 }       
+
+/* =================================================================================
+   7. IDENTIFICAÇÃO DO UTILIZADOR (BADGE SUPERIOR DIREITO)
+   ================================================================================= */
+function atualizarBadgeIdentificacao(nomeEmpresa, nomeUsuario) {
+    const elEmpresa = document.getElementById('nomeEmpresaBadge');
+    const elUsuario = document.getElementById('nomeUsuarioBadge');
+    
+    if (elEmpresa) elEmpresa.innerText = nomeEmpresa || 'Empresa';
+    if (elUsuario) elUsuario.innerText = nomeUsuario || 'Operador';
+}
+
+function carregarIdentificacaoSessao() {
+    const empresaSalva = localStorage.getItem('horus_empresa_nome') || 'SaaS Workspace';
+    const usuarioSalvo = localStorage.getItem('horus_usuario_nome') || 'Utilizador Ativo';
+    atualizarBadgeIdentificacao(empresaSalva, usuarioSalvo);
+}

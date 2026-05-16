@@ -672,3 +672,57 @@ button {
     -webkit-appearance: none; /* Remove setas no Chrome/Safari */
     margin: 0;
 }
+
+/* ==========================================================================
+   BADGE FLUTUANTE DE IDENTIFICAÇÃO (SUPERIOR DIREITO)
+   ========================================================================== */
+.user-profile-badge {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-glass);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    padding: 6px 14px;
+    border-radius: 30px;
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-sm);
+    z-index: 10; /* Fica acima do fundo do workspace, mas abaixo das janelas ativas */
+    user-select: none;
+    pointer-events: auto;
+    
+    /* Sombreamento simples, elegante e flutuante no texto */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: var(--transition-fast);
+}
+
+.user-profile-badge:hover {
+    border-color: var(--border-focus);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+.user-profile-badge i {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.user-profile-badge #nomeEmpresaBadge {
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.user-profile-badge .badge-divider {
+    color: var(--text-muted);
+    font-weight: bold;
+    padding: 0 2px;
+}
+
+.user-profile-badge #nomeUsuarioBadge {
+    color: var(--text-secondary);
+}
