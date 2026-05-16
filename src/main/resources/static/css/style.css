@@ -254,6 +254,34 @@ button {
     padding: 20px;
 }
 
+/* MARCA D'ÁGUA NO FUNDO DO WORKSPACE (Perspective H Exata) */
+.app-workspace::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 0; /* Mantém estritamente atrás das janelas e do perfil */
+    pointer-events: none; /* Bloqueia qualquer interferência de clique */
+    
+    /* Injeção em vetor (Data URI) com a mesma geometria exata do SVG de login */
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M50 15 L85 35 L85 75 L50 95 L15 75 L15 35 Z' fill='none' stroke='%23111827' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M50 15 L50 95 M15 35 L50 55 L85 35 M15 75 L50 55' fill='none' stroke='%23111827' stroke-width='2' stroke-linejoin='round' opacity='0.6'/%3E%3Cpath d='M32 45 L50 55 L68 45 M32 65 L50 75 L68 65' fill='none' stroke='%23111827' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 40% auto; /* Proporção elegante ocupando o centro do monitor */
+    
+    /* Filtro de atenuação para estética limpa */
+    opacity: 0.03; /* Apenas 3% de visibilidade para o efeito "Uau" subliminar */
+    filter: blur(0.5px); /* Desfoque levíssimo para suavizar as arestas em resoluções altas */
+}
+
+/* Garante a ordenação de camadas do Workspace */
+.app-workspace > * {
+    position: relative;
+    z-index: 1;
+}
+
 .window {
     position: absolute;
     background: var(--bg-glass);
@@ -680,6 +708,7 @@ button {
     position: absolute;
     top: 24px;
     right: 24px;
+    width: max-content; /* <-- ESSA É A LINHA QUE CORRIGE O ESTICAMENTO */
     display: flex;
     align-items: center;
     gap: 8px;
@@ -725,4 +754,56 @@ button {
 
 .user-profile-badge #nomeUsuarioBadge {
     color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   LOGOTIPO E CABEÇALHO DO LOGIN (THE PERSPECTIVE H)
+   ========================================================================== */
+
+.login-header {
+    text-align: center;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.logo-icon-svg {
+    width: 72px;
+    height: 72px;
+    display: block;
+    margin-bottom: 16px;
+    
+    /* O drop-shadow no filtro cria sombra no formato exato das linhas do SVG (diferente do box-shadow) */
+    filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.12));
+    
+    /* Animação de entrada premium (Curva bezier estilo Apple/Vercel) */
+    animation: logoEntrance 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.login-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-main, #111827);
+    letter-spacing: -0.04em;
+    margin-bottom: 4px;
+    line-height: 1;
+}
+
+.login-subtitle {
+    font-size: 14px;
+    color: var(--text-muted, #9ca3af);
+    font-weight: 400;
+}
+
+/* Keyframes da animação de entrada exclusiva para a logo */
+@keyframes logoEntrance {
+    0% {
+        opacity: 0;
+        transform: translateY(15px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }

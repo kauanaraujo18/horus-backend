@@ -7,8 +7,8 @@
 /* ==========================================================================
    CONFIGURAÇÕES GLOBAIS
    ========================================================================== */
-//const API_URL = "https://horus-api-cjb4.onrender.com";
-const API_URL = "http://localhost:8080";
+const API_URL = "https://horus-api-cjb4.onrender.com";
+//const API_URL = "http://localhost:8080";
 let zIndexCounter = 100; // Controle de profundidade das janelas
 let cascadeOffset = 0;   // Controle de posição em cascata
 
