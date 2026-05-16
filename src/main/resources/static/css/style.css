@@ -807,3 +807,152 @@ button {
         transform: translateY(0) scale(1);
     }
 }
+
+/* ==========================================================================
+   MÓDULO: DASHBOARD GERENCIAL
+   ========================================================================== */
+.dashboard-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px;
+    background: #f9fafb; /* Fundo leve para destacar os cards brancos */
+    overflow-y: auto;
+}
+
+.dashboard-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.toolbar-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.dashboard-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.kpi-card {
+    background: #fff;
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease;
+}
+
+.kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+}
+
+.kpi-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--bg-glass);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+}
+
+.kpi-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.kpi-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.kpi-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.2;
+}
+
+.dashboard-charts {
+    display: grid;
+    grid-template-columns: 2fr 1fr; /* O gráfico de barras fica 2x mais largo que a pizza */
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.chart-card {
+    background: #fff;
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.chart-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 8px;
+}
+
+.canvas-wrapper {
+    position: relative;
+    height: 250px; /* Altura fixa para manter a proporção dos gráficos */
+    width: 100%;
+}
+
+/* Container de datas personalizado (Padrão Horus Premium) */
+.dashboard-custom-dates {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    background: var(--bg-glass, rgba(255, 255, 255, 0.7));
+    backdrop-filter: var(--glass-blur, blur(12px));
+    -webkit-backdrop-filter: var(--glass-blur, blur(12px));
+    border: 1px solid var(--border-subtle, #e5e7eb);
+    padding: 10px 16px;
+    border-radius: 8px;
+    margin-top: -4px; /* Aproxima sutilmente do filtro de cima */
+    width: max-content;
+    animation: fadeIn 0.25s ease-out;
+}
+
+.input-group-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary, #4b5563);
+}
+
+.input-group-inline input[type="date"] {
+    padding: 6px 12px;
+    border: 1px solid var(--border-subtle, #e5e7eb);
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: var(--text-main, #111827);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+
+.input-group-inline input[type="date"]:focus {
+    border-color: var(--primary, #111827);
+}

@@ -4,6 +4,8 @@
  * Integração com Backend Spring Boot (REST API)
  */
 
+//const { set } = require("express/lib/application");
+
 /* ==========================================================================
    CONFIGURAÇÕES GLOBAIS
    ========================================================================== */
@@ -33,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupProdutosModule();
     setupPDVModule();
     setupRelatoriosModule();
+    setupDashboardModule();
     setupSpotlightSearch();
     setupFormatters();
 });
@@ -129,7 +132,8 @@ function setupWindowManagement() {
     const navMap = {
         'produtosBtn': 'produtosDiv',
         'caixaBtn': 'caixaDiv',
-        'relatoriosBtn': 'relatoriosDiv'
+        'relatoriosBtn': 'relatoriosDiv',
+        'dashboardBtn': 'dashboardDiv'
     };
 
     for (const [btnId, winId] of Object.entries(navMap)) {
@@ -1249,4 +1253,204 @@ function carregarIdentificacaoSessao() {
     const empresaSalva = localStorage.getItem('horus_empresa_nome') || 'SaaS Workspace';
     const usuarioSalvo = localStorage.getItem('horus_usuario_nome') || 'Utilizador Ativo';
     atualizarBadgeIdentificacao(empresaSalva, usuarioSalvo);
+}
+
+/* ==========================================================================
+   MÓDULO 8: DASHBOARD DE VENDAS (DATA VIZ)
+   ========================================================================== */
+let chartReceitaInstance = null;
+let chartProdutosInstance = null;
+let dashboardDataCache = null; // Cache para evitar requisições repetidas ao trocar o filtro rapidamente
+
+function setupDashboardModule() {
+    document.getElementById('dashboardBtn')?.addEventListener('click', () => {
+        carregarDashboardDados(true); // Força busca fresca na API ao clicar no menu
+    });
+}
+
+// Controla a exibição dos campos personalizados e dispara a atualização
+function toggleFiltroPersonalizado() {
+    const select = document.getElementById('dashFiltroTempo');
+    const container = document.getElementById('dashFiltroPersonalizadoContainer');
+    
+    if (select.value === 'CUSTOM') {
+        container.style.display = 'flex';
+        // Inicia com as datas de hoje preenchidas se estiverem vazias
+        if (!document.getElementById('dashDataInicio').value) {
+            const hojeStr = new Date().toISOString().split('T')[0];
+            document.getElementById('dashDataInicio').value = hojeStr;
+            document.getElementById('dashDataFim').value = hojeStr;
+        }
+    } else {
+        container.style.display = 'none';
+    }
+    carregarDashboardDados(false); // Usa os dados do cache local ao mudar o filtro básico
+}
+
+async function carregarDashboardDados(forceFetch = false) {
+    const btnIcon = document.querySelector('#dashboardBtn i');
+    if(btnIcon) btnIcon.className = "ph ph-spinner ph-spin";
+
+    try {
+        if (forceFetch || !dashboardDataCache) {
+            const token = localStorage.getItem('tokenHorus');
+            const res = await fetch(`${API_URL}/api/vendas`, {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error("Erro ao buscar dados do dashboard.");
+            dashboardDataCache = await res.json();
+        }
+
+        const filtroVal = document.getElementById('dashFiltroTempo').value;
+        processarERenderizarDashboard(dashboardDataCache, filtroVal);
+
+    } catch (e) {
+        console.error(e);
+        alert("Erro ao carregar Dashboard: " + e.message);
+    } finally {
+        if(btnIcon) btnIcon.className = "ph ph-squares-four";
+    }
+}
+
+function processarERenderizarDashboard(todasVendas, filtroVal) {
+    let hoje = new Date();
+    hoje.setHours(23, 59, 59, 999);
+    
+    let dataCorte = new Date();
+    dataCorte.setHours(0, 0, 0, 0);
+
+    // Lógica Avançada de Tratamento do Período
+    if (filtroVal === 'CUSTOM') {
+        const valInicio = document.getElementById('dashDataInicio').value;
+        const valFim = document.getElementById('dashDataFim').value;
+        
+        // Uso de literal 'T00:00:00' para travar o fuso horário no timezone local do navegador
+        if (valInicio) dataCorte = new Date(valInicio + 'T00:00:00');
+        if (valFim) hoje = new Date(valFim + 'T23:59:59');
+    } else {
+        const dias = parseInt(filtroVal, 10);
+        if (dias > 0) {
+            dataCorte.setDate(dataCorte.getDate() - dias);
+        }
+    }
+
+    // Filtra as vendas com base nas datas calculadas
+    const vendasPeriodo = todasVendas.filter(venda => {
+        const d = new Date(venda.dataVenda);
+        return d >= dataCorte && d <= hoje;
+    });
+
+    let receitaTotal = 0;
+    let volumeVendas = vendasPeriodo.length;
+    let vendasPorDia = {};
+    let produtosVendidos = {};
+
+    vendasPeriodo.forEach(venda => {
+        receitaTotal += venda.valorTotal;
+
+        const dataF = new Date(venda.dataVenda).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        vendasPorDia[dataF] = (vendasPorDia[dataF] || 0) + venda.valorTotal;
+
+        if (venda.itens) {
+            venda.itens.forEach(item => {
+                const nomeProd = item.nome || item.produto?.nome || 'Desconhecido';
+                produtosVendidos[nomeProd] = (produtosVendidos[nomeProd] || 0) + item.quantidade;
+            });
+        }
+    });
+
+    const ticketMedio = volumeVendas > 0 ? (receitaTotal / volumeVendas) : 0;
+    
+    document.getElementById('kpiReceita').innerText = formatarMoeda(receitaTotal);
+    document.getElementById('kpiTicket').innerText = formatarMoeda(ticketMedio);
+    document.getElementById('kpiVolume').innerText = volumeVendas;
+
+    // Inverte a amostragem cronológica das barras para refletir da esquerda para a direita corretamente
+    const labelsReceita = Object.keys(vendasPorDia).reverse(); 
+    const dadosReceita = Object.values(vendasPorDia).reverse();
+
+    const arrayProdutos = Object.entries(produtosVendidos).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const labelsProdutos = arrayProdutos.map(p => p[0]);
+    const dadosProdutos = arrayProdutos.map(p => p[1]);
+
+    renderizarChartReceita(labelsReceita, dadosReceita);
+    renderizarChartProdutos(labelsProdutos, dadosProdutos);
+}
+
+function renderizarChartReceita(labels, dados) {
+    const ctx = document.getElementById('chartReceita').getContext('2d');
+    if (chartReceitaInstance) chartReceitaInstance.destroy();
+
+    // Degradê Premium para a Barra
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(17, 24, 39, 0.8)'); // var(--text-main) Escuro
+    gradient.addColorStop(1, 'rgba(17, 24, 39, 0.2)');
+
+    chartReceitaInstance = new Chart(ctx, {
+        type: 'line', // Usando linha com preenchimento (estilo SaaS Premium)
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Receita Diária (R$)',
+                data: dados,
+                backgroundColor: gradient,
+                borderColor: '#111827',
+                borderWidth: 2,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#111827',
+                pointRadius: 4,
+                fill: true,
+                tension: 0.3 // Deixa a linha suave
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { callback: function(value) { return 'R$ ' + value; } }
+                }
+            }
+        }
+    });
+}
+
+function renderizarChartProdutos(labels, dados) {
+    const ctx = document.getElementById('chartProdutos').getContext('2d');
+    if (chartProdutosInstance) chartProdutosInstance.destroy();
+
+    chartProdutosInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: dados,
+                backgroundColor: [
+                    '#111827', // Preto/Cinza Escuro
+                    '#374151', // Cinza Médio
+                    '#6B7280', // Cinza Base
+                    '#9CA3AF', // Cinza Claro
+                    '#E5E7EB'  // Muito claro
+                ],
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '65%', // Deixa o furo da pizza maior e mais elegante
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } }
+                }
+            }
+        }
+    });
 }

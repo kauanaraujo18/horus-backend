@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="./css/style.css">
 </head>
 <body class="app-body">
@@ -64,6 +65,12 @@
                 <button id="relatoriosBtn" class="sidebar-btn" title="Relatórios e Etiquetas">
                     <i class="ph ph-chart-bar"></i>
                     <span>Relatórios</span>
+                </button>
+            </li>
+            <li>
+                <button id="dashboardBtn" class="sidebar-btn" title="Dashboard de Vendas">
+                    <i class="ph ph-squares-four"></i>
+                    <span>Dashboard</span>
                 </button>
             </li>
         </ul>
@@ -386,6 +393,80 @@
                             <button type="submit" class="btn-primary"><i class="ph ph-file-pdf"></i> Gerar Relatório</button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+        <div id="dashboardDiv" class="draggable window window-xl" style="display: none;">
+            <header class="headerjanela window-header">
+                <div class="window-controls">
+                    <button class="close-btn"><i class="ph ph-x"></i></button>
+                </div>
+                <div class="window-title-area">
+                    <i class="ph ph-squares-four window-icon"></i>
+                    <h2 class="window-title">Visão Geral de Vendas</h2>
+                </div>
+            </header>
+
+            <div class="window-body dashboard-layout">
+                <div class="dashboard-toolbar">
+                    <span class="toolbar-title">Filtro de Período:</span>
+                    <select id="dashFiltroTempo" class="custom-select" onchange="toggleFiltroPersonalizado()">
+                        <option value="0">Hoje</option>
+                        <option value="7" selected>Últimos 7 dias</option>
+                        <option value="30">Últimos 30 dias</option>
+                        <option value="365">Este Ano</option>
+                        <option value="CUSTOM">Personalizado (Entre datas)</option>
+                    </select>
+                </div>
+
+                <div id="dashFiltroPersonalizadoContainer" class="dashboard-custom-dates" style="display: none;">
+                    <div class="input-group-inline">
+                        <label for="dashDataInicio">Data Inicial:</label>
+                        <input type="date" id="dashDataInicio" onchange="carregarDashboardDados(false)">
+                    </div>
+                    <div class="input-group-inline">
+                        <label for="dashDataFim">Data Final:</label>
+                        <input type="date" id="dashDataFim" onchange="carregarDashboardDados(false)">
+                    </div>
+                </div>
+
+                <div class="dashboard-kpis">
+                    <div class="kpi-card">
+                        <div class="kpi-icon"><i class="ph ph-trend-up"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Receita Total</span>
+                            <strong class="kpi-value" id="kpiReceita">R$ 0,00</strong>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon"><i class="ph ph-receipt"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Ticket Médio</span>
+                            <strong class="kpi-value" id="kpiTicket">R$ 0,00</strong>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon"><i class="ph ph-shopping-bag"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Volume de Vendas</span>
+                            <strong class="kpi-value" id="kpiVolume">0</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-charts">
+                    <div class="chart-card col-span-2">
+                        <h3 class="chart-title">Receita por Período</h3>
+                        <div class="canvas-wrapper">
+                            <canvas id="chartReceita"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card col-span-1">
+                        <h3 class="chart-title">Top Produtos Vendidos</h3>
+                        <div class="canvas-wrapper">
+                            <canvas id="chartProdutos"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
