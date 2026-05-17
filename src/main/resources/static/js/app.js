@@ -435,6 +435,9 @@ function renderizarResultadosSpotlight(produtos) {
 /* ==========================================================================
    MÓDULO 5: GESTÃO DE PRODUTOS (CRUD)
    ========================================================================== */
+/* ==========================================================================
+   MÓDULO 5: GESTÃO DE PRODUTOS (CRUD)
+   ========================================================================== */
 function setupProdutosModule() {
     // Navegação Interna
     document.getElementById('btnNovoProduto')?.addEventListener('click', () => {
@@ -450,10 +453,28 @@ function setupProdutosModule() {
 
     document.getElementById('btnVoltarProdutos')?.addEventListener('click', () => navegarProdutos('menu'));
 
-    // Busca
-    document.getElementById('btnPesquisarProduto')?.addEventListener('click', buscarProdutosAPI);
-    document.getElementById('filtroNomeProduto')?.addEventListener('keyup', (e) => {
-        if (e.key === 'Enter') buscarProdutosAPI();
+    // ---> NOVA LÓGICA DE BUSCA EM TEMPO REAL (DEBOUNCE) <---
+    let timeoutBuscaGrid = null;
+    const inputFiltroGrid = document.getElementById('filtroNomeProduto');
+    const btnPesquisarGrid = document.getElementById('btnPesquisarProduto');
+
+    // Ao clicar no botão (Busca imediata)
+    btnPesquisarGrid?.addEventListener('click', buscarProdutosAPI);
+
+    // Ao digitar (Espera 400ms e busca sozinho em tempo real)
+    inputFiltroGrid?.addEventListener('input', (e) => {
+        clearTimeout(timeoutBuscaGrid);
+        timeoutBuscaGrid = setTimeout(() => {
+            buscarProdutosAPI();
+        }, 400); // 400ms de delay para não sobrecarregar o servidor
+    });
+
+    // Mantém o Enter para busca super imediata caso o usuário seja muito rápido
+    inputFiltroGrid?.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            clearTimeout(timeoutBuscaGrid);
+            buscarProdutosAPI();
+        }
     });
 
     // Form Submit (Salvar/Editar)

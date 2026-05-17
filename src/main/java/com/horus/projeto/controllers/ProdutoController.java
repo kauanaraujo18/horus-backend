@@ -35,85 +35,68 @@ public class ProdutoController {
         }
     }
 
+    // ========================================================================
+    // ENDPOINT ATUALIZADO: Agora suporta a busca em tempo real do Spotlight
+    // ========================================================================
     @GetMapping
-    public ResponseEntity<List<ProdutoEntity>> listarTodos() {
+    public ResponseEntity<List<ProdutoEntity>> listarTodos(@RequestParam(required = false) String nome) {
         // 1. Pescamos o usuário logado da memória do Spring Security
         var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         
-        // 2. Extraímos o ID da empresa dele! Adeus simulação!
+        // 2. Extraímos o ID da empresa dele
         Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
         
-        // Agora chamamos o Service passando o ID da empresa
-        List<ProdutoEntity> produtos = service.listarPorEmpresa(idEmpresaLogada);
+        // 3. Se houver um termo de pesquisa, usa a query nova (Tempo Real)
+        if (nome != null && !nome.trim().isEmpty()) {
+            List<ProdutoEntity> resultados = repository.buscarPorNomeOuCodigoEEmpresa(nome, idEmpresaLogada);
+            return ResponseEntity.ok(resultados);
+        }
         
+        // 4. Se não houver termo (Grid Inicial), lista todos os produtos da empresa
+        List<ProdutoEntity> produtos = service.listarPorEmpresa(idEmpresaLogada);
         return ResponseEntity.ok(produtos);
     }
 
     @PostMapping
     public ResponseEntity<ProdutoEntity> salvar(@RequestBody ProdutoEntity produto) {
-        // 1. Pescamos o usuário logado
         var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        
-        // 2. Extraímos a empresa
         Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
-        
-        // Manda o produto e a empresa para o Service
         ProdutoEntity produtoSalvo = service.salvar(produto, idEmpresaLogada);
-        
         return ResponseEntity.ok(produtoSalvo);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ProdutoEntity> atualizar(@PathVariable Long id, @RequestBody ProdutoEntity produto) {
-        // 1. Pescamos o usuário logado
         var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        
-        // 2. Extraímos a empresa
         Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
-        
-        // Garante que o produto vai ser atualizado no ID correto
         produto.setCodProduto(id); 
-        
-        // Chama o Service passando a empresa
         ProdutoEntity produtoAtualizado = service.salvar(produto, idEmpresaLogada);
-        
         return ResponseEntity.ok(produtoAtualizado);
     }
 
-    // ========================================================================
-    // NOVO ENDPOINT: ATUALIZAÇÃO PARCIAL (AJUSTE RÁPIDO DE ESTOQUE)
-    // ========================================================================
     @PatchMapping("/{id}")
     public ResponseEntity<ProdutoEntity> atualizarEstoqueParcial(@PathVariable Long id, @RequestBody Map<String, Integer> payload) {
         try {
-            // 1. Pescamos o usuário logado para garantir a segurança
             var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
-
-            // 2. Busca o produto existente no banco
             ProdutoEntity produtoExistente = service.buscarPorId(id);
 
-            // 3. Validação de Segurança: Garante que o produto pertence à empresa logada
             if (!produtoExistente.getEmpresa().getId().equals(idEmpresaLogada)) {
-                return ResponseEntity.status(403).build(); // Forbidden
+                return ResponseEntity.status(403).build(); 
             }
 
-            // 4. Faz a atualização cirúrgica apenas do campo enviado
             if (payload.containsKey("quantidadeEstoque")) {
                 produtoExistente.setQuantidadeEstoque(payload.get("quantidadeEstoque"));
-                
-                // Salvamos direto pelo repository para não acionar as validações de código (EAN) do Service de atualização completa
                 ProdutoEntity produtoAtualizado = repository.save(produtoExistente);
                 return ResponseEntity.ok(produtoAtualizado);
             }
-
             return ResponseEntity.badRequest().build();
-            
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
     }
 
+    // Nota: O endpoint antigo "/pesquisar" foi mantido mas não é mais necessário para o fluxo principal.
     @GetMapping("/pesquisar")
     public ResponseEntity<List<ProdutoEntity>> pesquisarProdutos(@RequestParam String termo) {
         List<ProdutoEntity> produtos = repository.findByNomeContainingIgnoreCase(termo);
@@ -122,18 +105,14 @@ public class ProdutoController {
 
     @GetMapping("/codigo/{codigo}")
     public ResponseEntity<?> buscarPorCodigo(@PathVariable String codigo) {
-        
-        // 1. Captura o usuário logado e a empresa dele
         var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
-
-        // 2. Tenta achar o produto pelo código E garantindo que é da empresa logada
         Optional<ProdutoEntity> produto = repository.findByCodigoAndEmpresaId(codigo, idEmpresaLogada);
         
         if (produto.isPresent()) {
             return ResponseEntity.ok(produto.get());
         } else {
-            return ResponseEntity.notFound().build(); // Retorna Erro 404 se não achar ou se for de outra empresa
+            return ResponseEntity.notFound().build(); 
         }
     }
 
