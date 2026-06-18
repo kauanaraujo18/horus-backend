@@ -15,9 +15,12 @@ import java.time.ZonedDateTime;
 @Service
 public class TokenService {
 
-    // O Render vai injetar a senha de produção aqui. Se não achar, usa a local.
-    @Value("${api.security.token.secret:minha-chave-secreta-horus-2026}")
+    // Obrigatório: definido via env var JWT_SECRET (produção) ou application.properties (local).
+    @Value("${api.security.token.secret}")
     private String secret;
+
+    @Value("${api.security.token.expiration-hours:2}")
+    private long expirationHours;
 
     public String gerarToken(UsuarioEntity usuario) {
         try {
@@ -60,10 +63,10 @@ public class TokenService {
     }
 
     private Instant gerarDataExpiracao() {
-        // MÁGICA DA NUVEM: Forçamos o relógio a usar a hora exata do Brasil, 
+        // MÁGICA DA NUVEM: Forçamos o relógio a usar a hora exata do Brasil,
         // ignorando o fuso horário físico do servidor do Render.
         return ZonedDateTime.now(ZoneId.of("America/Sao_Paulo"))
-                .plusHours(2)
+                .plusHours(expirationHours)
                 .toInstant();
     }
 }

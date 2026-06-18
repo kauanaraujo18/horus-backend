@@ -1,7 +1,9 @@
 package com.horus.projeto.controllers;
 
 import com.horus.projeto.dto.LoginRequestDTO;
+import com.horus.projeto.dto.RegistroRequestDTO;
 import com.horus.projeto.entities.UsuarioEntity;
+import com.horus.projeto.repositories.UsuarioRepository;
 import com.horus.projeto.services.TokenService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -10,8 +12,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@CrossOrigin(origins = "*") // Libera acesso do Front
 public class UsuarioController {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(UsuarioController.class);
 
     @Autowired
     private AuthenticationManager manager;
@@ -19,48 +22,76 @@ public class UsuarioController {
     @Autowired
     private TokenService tokenService;
 
+    @Autowired
+    private UsuarioRepository repository;
+
     @PostMapping("/api/login")
     public ResponseEntity<?> login(@RequestBody LoginRequestDTO loginData) {
         try {
-            // 1. O manager valida o login e a senha no banco de dados
             var authenticationToken = new UsernamePasswordAuthenticationToken(loginData.getLogin(), loginData.getSenha());
             var authentication = manager.authenticate(authenticationToken);
             
-            // 2. Se a senha estiver correta, gera o Token
             var usuario = (UsuarioEntity) authentication.getPrincipal();
             var tokenJWT = tokenService.gerarToken(usuario);
             
-            // 3. Valores padrão seguros (caso algo falhe, o login não trava)
             String nomeUsuario = usuario.getLogin(); 
             String empresaNome = "Horus Workspace";
 
-            // Captura isolada do Nome do Usuário
             try {
                 if (usuario.getNome() != null && !usuario.getNome().isEmpty()) {
                     nomeUsuario = usuario.getNome();
                 }
-            } catch (Throwable t) {
-                // Se der qualquer erro ao ler o método getNome, ignora e mantém o login
-            }
+            } catch (Throwable t) {}
 
-            // Captura isolada do Nome da Empresa (Protege contra LazyInitializationException)
             try {
                 if (usuario.getEmpresa() != null) {
                     empresaNome = usuario.getEmpresa().getRazaoSocial();
                 }
-            } catch (Throwable t) {
-                // Se der erro de carregamento da empresa, ignora e mantém o padrão
-            }
+            } catch (Throwable t) {}
             
-            // 4. Retorna a resposta com os 3 dados que o Front-end precisa
-            return ResponseEntity.ok(new TokenResponse(tokenJWT, nomeUsuario, empresaNome));
+            return ResponseEntity.ok(new TokenResponse(tokenJWT, nomeUsuario, empresaNome, usuario.getPerfil()));
 
         } catch (Exception e) {
-            System.out.println("Falha de autenticação real (Senha incorreta): " + e.getMessage());
+            log.warn("Falha de autenticação para o login informado.");
             return ResponseEntity.status(401).body("Usuário ou senha incorretos.");
         }
     }
 
-    // Record atualizado para carregar os dados que o seu plug do main.js espera receber
-    private record TokenResponse(String token, String nome, String empresaNome) {}
+    // ========================================================================
+    // NOVO ENDPOINT: COFRE DE REGISTO PÚBLICO
+    // ========================================================================
+    @PostMapping("/api/auth/registro")
+    public ResponseEntity<?> registrarConta(@RequestBody RegistroRequestDTO dto) {
+        try {
+            // 1. Validação de bloqueio rápido: Verifica se o email já existe
+            if (repository.findByLogin(dto.getEmailProprietario()).isPresent()) {
+                return ResponseEntity.badRequest().body("Este e-mail já se encontra registado no sistema.");
+            }
+
+            // 2. Senha provisória (O formulário público não pede senha por motivos de conversão)
+            String senhaProvisoria = "Mudar@123";
+
+            // 3. Executa a transação atómica
+            repository.registrarNovaConta(
+                    dto.getRazaoSocial(),
+                    dto.getNomeFantasia(),
+                    dto.getCnpj(),
+                    dto.getNomeProprietario(),
+                    dto.getTelefoneProprietario(),
+                    dto.getEmailProprietario(),
+                    dto.getCpfProprietario(),
+                    dto.getDataNascimentoProprietario(),
+                    senhaProvisoria
+            );
+
+            // Resposta de Sucesso limpa para o Frontend
+            return ResponseEntity.ok().build();
+
+        } catch (Exception e) {
+            log.error("Erro ao registrar nova conta", e);
+            return ResponseEntity.internalServerError().body("Ocorreu um erro interno ao processar o registo.");
+        }
+    }
+
+    private record TokenResponse(String token, String nome, String empresaNome, String perfil) {}
 }

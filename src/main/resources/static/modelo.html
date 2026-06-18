@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -19,12 +19,12 @@
                 <svg class="logo-icon-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                         <linearGradient id="gradLogo" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style="stop-color:#000000;stop-opacity:1" />
-                            <stop offset="100%" style="stop-color:#333333;stop-opacity:1" />
+                            <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
                         </linearGradient>
                     </defs>
                     <path d="M50 15 L85 35 L85 75 L50 95 L15 75 L15 35 Z" fill="none" stroke="url(#gradLogo)" stroke-width="4" stroke-linejoin="round"/>
-                    <path d="M50 15 L50 95 M15 35 L50 55 L85 35 M15 75 L50 55" fill="none" stroke="url(#gradLogo)" stroke-width="2" stroke-linejoin="round" opacity="0.6"/>
+                    <path d="M50 15 L50 95 M15 35 L50 55 L85 35 M15 75 L50 55 L85 75" fill="none" stroke="url(#gradLogo)" stroke-width="2" stroke-linejoin="round" opacity="0.6"/>
                     <path d="M32 45 L50 55 L68 45 M32 65 L50 75 L68 65" fill="none" stroke="url(#gradLogo)" stroke-width="3" stroke-linejoin="round"/>
                 </svg>
                 <h1 class="login-title">Horus</h1>
@@ -73,6 +73,12 @@
                     <span>Dashboard</span>
                 </button>
             </li>
+            <li>
+                <button id="contasPagarBtn" class="sidebar-btn" title="Contas a Pagar">
+                    <i class="ph ph-invoice"></i>
+                    <span>Contas</span>
+                </button>
+            </li>
         </ul>
         <div class="sidebar-footer">
             <button class="sidebar-btn btn-logout" title="Sair do Sistema">
@@ -91,7 +97,7 @@
             <span id="nomeUsuarioBadge">Carregando...</span>
         </div>
 
-        <div id="produtosDiv" class="draggable window window-md" style="display: none;">
+        <div id="produtosDiv" class="draggable window window-lg" style="display: none;">
             <header class="headerjanela window-header">
                 <div class="window-controls">
                     <button class="close-btn"><i class="ph ph-x"></i></button>
@@ -113,6 +119,18 @@
                         <button class="menu-card botaoJanela">
                             <i class="ph ph-magnifying-glass"></i>
                             <span>Consultar Estoque</span>
+                        </button>
+                        <button class="menu-card botaoJanela" id="btnEsquemaProducoes">
+                            <i class="ph ph-tree-structure"></i>
+                            <span>Esquema de Produções</span>
+                        </button>
+                        <button class="menu-card botaoJanela" id="btnNovaProd">
+                            <i class="ph ph-flask"></i>
+                            <span>Nova Produção</span>
+                        </button>
+                        <button class="menu-card botaoJanela" id="btnHistoricoProd">
+                            <i class="ph ph-clock-counter-clockwise"></i>
+                            <span>Histórico de Produções</span>
                         </button>
                     </div>
                 </div>
@@ -147,13 +165,68 @@
                                 <input type="text" id="produtoNome" required placeholder="Ex: Cerveja Artesanal IPA">
                             </div>
                             <div class="input-group col-span-1">
+                                <label for="produtoTipo">Tipo do Produto</label>
+                                <select id="produtoTipo" onchange="handleTipoProdutoChange()">
+                                    <option value="R">Revenda (R)</option>
+                                    <option value="MP">Matéria-Prima (MP)</option>
+                                    <option value="PF">Produto Final (PF)</option>
+                                    <option value="MPPF">Mat. Prima / Prod. Final (MPPF)</option>
+                                </select>
+                            </div>
+                            <div class="input-group col-span-1">
                                 <label for="produtoValor">Valor de Venda</label>
-                                <input type="text" id="produtoValor" required placeholder="R$ 0,00">
+                                <input type="text" id="produtoValor" required placeholder="R$ 0,00 *">
+                            </div>
+
+                            <div class="input-group col-span-1">
+                                <label for="produtoValorCusto">Valor de Custo</label>
+                                <input type="text" id="produtoValorCusto" placeholder="R$ 0,00">
                             </div>
 
                             <div class="input-group col-span-1">
                                 <label for="produtoQuantidade">Estoque Inicial</label>
                                 <input type="number" id="produtoQuantidade" min="0" required placeholder="0">
+                            </div>
+
+                            <div class="input-group col-span-1">
+                                <label for="produtoUnidadeMedida">Unidade de Medida</label>
+                                <select id="produtoUnidadeMedida" onchange="handleUnidadeMedidaChange()">
+                                    <option value="">-- Selecione --</option>
+                                    <option value="PESO">Peso</option>
+                                    <option value="VOLUME">Volume</option>
+                                    <option value="COMPRIMENTO">Comprimento</option>
+                                    <option value="AREA">Área</option>
+                                    <option value="UNIDADE">Unidade</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group col-span-1">
+                                <label for="produtoReferencia">Referência</label>
+                                <select id="produtoReferencia" disabled>
+                                    <option value="">-- Selecione a unidade primeiro --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Seção Matérias-Primas: só aparece para PF e MPPF -->
+                        <div id="secaoMateriasPrimas" style="display: none; margin-top: 16px; border-top: 1px solid var(--border-subtle); padding-top: 16px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                <div>
+                                    <h4 style="margin: 0; font-size: 13px; font-weight: 600; color: var(--text-main);">
+                                        <i class="ph ph-tree-structure" style="margin-right: 6px;"></i>Composição — Matérias-Primas
+                                    </h4>
+                                    <span style="font-size: 11px; color: var(--text-muted);">Selecione os insumos e defina a quantidade de cada um</span>
+                                </div>
+                                <span id="contadorMpSelecionadas" style="font-size: 11px; color: var(--text-muted); background: var(--bg-hover); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border-subtle);">0 selecionadas</span>
+                            </div>
+                            <div class="composicao-header">
+                                <span>Insumo</span>
+                                <span style="text-align:center;">Quantidade</span>
+                            </div>
+                            <div id="listaMateriasPrimasDisp" class="composicao-lista">
+                                <span style="font-size: 12px; color: var(--text-muted); padding: 12px; display: block; text-align: center;">
+                                    <i class="ph ph-spinner ph-spin"></i> Carregando insumos disponíveis...
+                                </span>
                             </div>
                         </div>
 
@@ -162,6 +235,109 @@
                         </div>
                     </form>
                 </div>
+
+                <!-- ── HISTÓRICO DE PRODUÇÕES ────────────────────────── -->
+                <div id="prodViewHistorico" class="view-section" style="display:none;">
+                    <div class="toolbar">
+                        <h3 style="font-size:14px;font-weight:600;color:var(--text-main);flex:1;">Histórico de Produções</h3>
+                        <button id="btnNovaProdHistorico" class="btn-primary" style="width:auto;padding:10px 16px;">
+                            <i class="ph ph-plus"></i> Nova Produção
+                        </button>
+                    </div>
+                    <div class="table-container cp-table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Produto Produzido</th>
+                                    <th class="align-center">Qtd Produzida</th>
+                                    <th class="align-center">Data</th>
+                                    <th class="align-center">Status</th>
+                                    <th class="align-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="prodHistoricoCorpo">
+                                <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">
+                                    <i class="ph ph-spinner ph-spin"></i> Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ── FORMULÁRIO DE PRODUÇÃO ────────────────────────── -->
+                <div id="prodViewForm" class="view-section" style="display:none; padding: 20px 24px;">
+
+                    <!-- PASSO 1: Busca do produto -->
+                    <div id="prodStep1">
+                        <div class="prod-step-label">
+                            <span class="step-circle" style="width:22px;height:22px;font-size:11px;">1</span>
+                            Selecione o produto a produzir (PF ou MPPF)
+                        </div>
+                        <div class="cp-produto-busca" style="margin-top:10px;">
+                            <div class="search-bar" style="flex:1;">
+                                <i class="ph ph-magnifying-glass"></i>
+                                <input type="text" id="prodBuscaProduto" placeholder="Buscar produto final por nome...">
+                            </div>
+                            <button type="button" class="btn-secondary" onclick="prodBuscarProduto()">
+                                <i class="ph ph-magnifying-glass"></i> Buscar
+                            </button>
+                        </div>
+                        <div id="prodResultadosBusca" class="cp-resultados-produto" style="display:none;"></div>
+
+                        <!-- Card do produto selecionado -->
+                        <div id="prodProdutoSelecionado" class="prod-produto-card" style="display:none;">
+                            <div class="prod-produto-info">
+                                <div id="prodNomeProduto" class="prod-produto-nome"></div>
+                                <div id="prodTipoProduto" class="prod-produto-tipo"></div>
+                                <div id="prodEstoqueProduto" class="prod-produto-estoque"></div>
+                            </div>
+                            <button type="button" class="btn-secondary" style="font-size:11px;" onclick="prodLimparSelecao()">
+                                <i class="ph ph-x"></i> Trocar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- PASSO 2: Quantidade -->
+                    <div id="prodStep2" style="display:none; margin-top:16px;">
+                        <div class="prod-step-label">
+                            <span class="step-circle" style="width:22px;height:22px;font-size:11px;">2</span>
+                            Defina a quantidade a produzir
+                        </div>
+                        <div class="prod-qtd-row">
+                            <div class="input-group" style="width:160px;margin-bottom:0;">
+                                <label>Quantidade</label>
+                                <input type="number" id="prodQuantidade" min="1" value="1"
+                                    oninput="prodCalcularPreview()">
+                            </div>
+                            <button type="button" class="btn-secondary" onclick="prodCalcularPreview()">
+                                <i class="ph ph-calculator"></i> Calcular Insumos
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- PASSO 3: Preview de insumos -->
+                    <div id="prodStep3" style="display:none; margin-top:16px;">
+                        <div class="prod-step-label">
+                            <span class="step-circle" style="width:22px;height:22px;font-size:11px;">3</span>
+                            Insumos que serão consumidos
+                        </div>
+                        <div id="prodPreviewContainer" class="prod-preview-box">
+                            <!-- Tabela gerada dinamicamente -->
+                        </div>
+                        <div id="prodAlertaContainer" style="margin-top:8px;"></div>
+                    </div>
+
+                    <!-- Ações finais -->
+                    <div id="prodAcoes" style="display:none; margin-top:16px; padding-top:12px; border-top: 1px solid var(--border-subtle);">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div id="prodResumoFinal" style="font-size:13px;color:var(--text-secondary);"></div>
+                            <button type="button" id="btnConfirmarProducao" class="btn-primary" style="width:auto;padding:12px 28px;"
+                                onclick="prodConfirmar()">
+                                <i class="ph ph-flask"></i> Confirmar Produção
+                            </button>
+                        </div>
+                    </div>
+
+                </div><!-- /prodViewForm -->
             </div>
         </div>
 
@@ -312,6 +488,10 @@
                             <i class="ph ph-trend-up"></i>
                             <span>Analítico de Vendas</span>
                         </button>
+                        <button class="menu-card" id="btnAbrirRelContasPagar">
+                            <i class="ph ph-receipt"></i>
+                            <span>Contas a Pagar</span>
+                        </button>
                     </div>
                 </div>
 
@@ -351,6 +531,44 @@
                         </div>
                         <div class="form-actions">
                             <button type="submit" class="btn-primary"><i class="ph ph-printer"></i> Gerar Etiquetas</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="conteudoFormContasPagar" class="view-section form-section" style="display: none;">
+                    <form id="formRelatorioContasPagar" class="standard-form" onsubmit="event.preventDefault(); gerarRelatorioContasPagarPDF();">
+                        <div class="form-grid">
+                            <div class="input-group col-span-1">
+                                <label for="cpRelVencInicio">Vencimento Inicial</label>
+                                <input type="date" id="cpRelVencInicio" required>
+                            </div>
+                            <div class="input-group col-span-1">
+                                <label for="cpRelVencFim">Vencimento Final</label>
+                                <input type="date" id="cpRelVencFim" required>
+                            </div>
+                            <div class="input-group col-span-2">
+                                <label for="cpRelStatus">Status</label>
+                                <select id="cpRelStatus" class="custom-select">
+                                    <option value="TODOS">Todos</option>
+                                    <option value="EM_ABERTO">Em Aberto</option>
+                                    <option value="VENCIDA">Vencidas</option>
+                                    <option value="PAGA">Pagas</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group col-span-2 checklist-group">
+                                <div class="checklist-header">
+                                    <label>Filtro por Produtos</label>
+                                    <div class="checklist-actions">
+                                        <button type="button" onclick="marcarTodosProdutosCP(true)">Todos</button>
+                                        <button type="button" onclick="marcarTodosProdutosCP(false)">Nenhum</button>
+                                    </div>
+                                </div>
+                                <div id="listaProdutosCheckCP" class="checklist-container scrollable-box"></div>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary"><i class="ph ph-file-pdf"></i> Gerar Relatório</button>
                         </div>
                     </form>
                 </div>
@@ -470,6 +688,247 @@
                 </div>
             </div>
         </div>
+        <!-- ═══════════════════════════════════════════════════════════
+             JANELA: CONTAS A PAGAR
+             ═══════════════════════════════════════════════════════════ -->
+        <div id="contasPagarDiv" class="draggable window window-lg" style="display: none;">
+            <header class="headerjanela window-header">
+                <div class="window-controls">
+                    <button class="close-btn"><i class="ph ph-x"></i></button>
+                </div>
+                <div class="window-title-area">
+                    <i class="ph ph-invoice window-icon"></i>
+                    <button id="btnVoltarContasPagar" class="btn-icon btn-back" style="display: none;">
+                        <i class="ph ph-caret-left"></i>
+                    </button>
+                    <h2 id="tituloJanelaContasPagar" class="window-title">Contas a Pagar</h2>
+                </div>
+            </header>
+
+            <div class="window-body">
+
+                <!-- ── MENU PRINCIPAL ───────────────────────────────── -->
+                <div id="cpViewMenu" class="view-section">
+                    <div class="menu-grid">
+                        <button class="menu-card" id="btnNovaContaPagar">
+                            <i class="ph ph-plus-circle"></i>
+                            <span>Nova Conta</span>
+                        </button>
+                        <button class="menu-card" id="btnConsultarContasPagar">
+                            <i class="ph ph-list-bullets"></i>
+                            <span>Consultar Contas</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── CONSULTA ─────────────────────────────────────── -->
+                <div id="cpViewConsulta" class="view-section" style="display: none;">
+                    <div class="toolbar">
+                        <div class="search-bar">
+                            <i class="ph ph-magnifying-glass"></i>
+                            <input type="text" id="cpFiltroBusca" placeholder="Buscar por descrição ou fornecedor...">
+                        </div>
+                        <button id="btnCpBuscar" class="btn-secondary">
+                            <i class="ph ph-magnifying-glass"></i> Buscar
+                        </button>
+                        <button id="btnNovaContaPagarConsulta" class="btn-primary" style="width: auto; padding: 10px 16px;">
+                            <i class="ph ph-plus"></i> Nova
+                        </button>
+                    </div>
+
+                    <div class="cp-kpis" id="cpKpis"></div>
+
+                    <div class="table-container cp-table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Descrição / Fornecedor</th>
+                                    <th class="align-center">Vencimento</th>
+                                    <th class="align-right">Valor Total</th>
+                                    <th class="align-center">Status</th>
+                                    <th class="align-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cpTabelaCorpo">
+                                <tr>
+                                    <td colspan="5" style="text-align:center; color: var(--text-muted); padding: 32px;">
+                                        <i class="ph ph-spinner ph-spin"></i> Carregando...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ── FORMULÁRIO WIZARD ────────────────────────────── -->
+                <div id="cpViewForm" class="view-section cp-form-section" style="display: none;">
+
+                    <!-- Indicador de Etapas -->
+                    <div class="wizard-steps">
+                        <div class="wizard-step active" data-step="1">
+                            <div class="step-circle">1</div>
+                            <span>Principal</span>
+                        </div>
+                        <div class="wizard-step-line"></div>
+                        <div class="wizard-step" data-step="2">
+                            <div class="step-circle">2</div>
+                            <span>Produtos</span>
+                        </div>
+                        <div class="wizard-step-line"></div>
+                        <div class="wizard-step" data-step="3">
+                            <div class="step-circle">3</div>
+                            <span>Pagamento</span>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="cpContaId">
+
+                    <!-- Etapa 1: Dados Principais -->
+                    <div id="cpStep1" class="wizard-panel active">
+                        <div class="form-grid cp-form-grid">
+                            <div class="input-group col-span-3">
+                                <label for="cpDescricao">Nome / Descrição da Conta *</label>
+                                <input type="text" id="cpDescricao" placeholder="Ex: Compra de insumos - Fornecedor XYZ">
+                            </div>
+                            <div class="input-group col-span-2">
+                                <label for="cpFornecedor">Fornecedor</label>
+                                <input type="text" id="cpFornecedor" placeholder="Ex: Distribuidora ABC Ltda.">
+                            </div>
+                            <div class="input-group col-span-1">
+                                <label for="cpNotaFiscal">Nº da Nota Fiscal</label>
+                                <input type="text" id="cpNotaFiscal" placeholder="Ex: NF-001234">
+                            </div>
+                        </div>
+                        <div class="wizard-nav">
+                            <span></span>
+                            <button type="button" class="btn-primary" style="width:auto; padding: 10px 24px;" onclick="cpAvancarEtapa(2)">
+                                Próximo <i class="ph ph-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Etapa 2: Produtos -->
+                    <div id="cpStep2" class="wizard-panel" style="display:none;">
+                        <div class="cp-produto-busca">
+                            <div class="search-bar" style="flex:1;">
+                                <i class="ph ph-magnifying-glass"></i>
+                                <input type="text" id="cpBuscaProduto" placeholder="Buscar produto por nome...">
+                            </div>
+                            <button type="button" class="btn-secondary" onclick="cpBuscarProduto()">
+                                <i class="ph ph-magnifying-glass"></i> Buscar
+                            </button>
+                        </div>
+                        <div id="cpResultadosProduto" class="cp-resultados-produto" style="display:none;"></div>
+
+                        <!-- Itens adicionados -->
+                        <div class="cp-itens-header">
+                            <span>Itens adicionados à conta</span>
+                            <span id="cpTotalItensLabel" class="cp-total-label">Total: R$ 0,00</span>
+                        </div>
+                        <div class="table-container" style="max-height: 200px;">
+                            <table class="data-table" id="cpTabelaItens">
+                                <thead>
+                                    <tr>
+                                        <th>Produto</th>
+                                        <th class="align-center">Qtd</th>
+                                        <th class="align-right">Vlr Unit.</th>
+                                        <th class="align-right">Subtotal</th>
+                                        <th class="align-center">—</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cpItensCorpo">
+                                    <tr id="cpItensVazio">
+                                        <td colspan="5" style="text-align:center; color:var(--text-muted); padding:16px; font-size:12px;">
+                                            Nenhum produto adicionado (opcional)
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="wizard-nav">
+                            <button type="button" class="btn-secondary" onclick="cpAvancarEtapa(1)">
+                                <i class="ph ph-arrow-left"></i> Voltar
+                            </button>
+                            <button type="button" class="btn-primary" style="width:auto; padding: 10px 24px;" onclick="cpAvancarEtapa(3)">
+                                Próximo <i class="ph ph-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Etapa 3: Pagamento -->
+                    <div id="cpStep3" class="wizard-panel" style="display:none;">
+
+                        <!-- Toggle: Conta já paga? -->
+                        <div class="cp-toggle-paga">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="cpJaPaga" onchange="cpTogglePaga()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <div>
+                                <span class="toggle-label">Conta já foi paga</span>
+                                <span class="toggle-hint">Ao ativar, os campos de vencimento são opcionais</span>
+                            </div>
+                        </div>
+
+                        <!-- Configurador de Parcelas -->
+                        <div class="cp-parcelas-config">
+                            <div class="form-grid cp-form-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 12px;">
+                                <div class="input-group">
+                                    <label>Nº de Parcelas</label>
+                                    <input type="number" id="cpNumeroParcelas" min="1" max="60" value="1"
+                                           oninput="cpGerarParcelas()">
+                                </div>
+                                <div class="input-group">
+                                    <label>Valor Total das Parcelas</label>
+                                    <input type="text" id="cpValorTotalParcelas" placeholder="R$ 0,00"
+                                           oninput="mascaraMoeda(this); cpDistribuirValor()">
+                                </div>
+                                <div class="input-group">
+                                    <label>1ª Data de Vencimento</label>
+                                    <input type="date" id="cpPrimeiroVencimento" onchange="cpGerarParcelas()">
+                                </div>
+                            </div>
+                            <button type="button" class="btn-secondary" style="margin-bottom:12px;" onclick="cpGerarParcelas()">
+                                <i class="ph ph-arrows-clockwise"></i> Gerar Parcelas
+                            </button>
+                        </div>
+
+                        <!-- Tabela de parcelas geradas -->
+                        <div class="table-container" style="max-height: 200px;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th class="align-center">Parcela</th>
+                                        <th class="align-right">Valor (R$)</th>
+                                        <th class="align-center">Vencimento</th>
+                                        <th class="align-center">Paga?</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cpParcelasCorpo">
+                                    <tr>
+                                        <td colspan="4" style="text-align:center; color:var(--text-muted); padding:16px; font-size:12px;">
+                                            Configure e clique em "Gerar Parcelas"
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="wizard-nav" style="margin-top: 16px;">
+                            <button type="button" class="btn-secondary" onclick="cpAvancarEtapa(2)">
+                                <i class="ph ph-arrow-left"></i> Voltar
+                            </button>
+                            <button type="button" id="btnCpSalvar" class="btn-primary" style="width:auto; padding: 10px 24px;" onclick="cpSalvarConta()">
+                                <i class="ph ph-floppy-disk"></i> Salvar Conta
+                            </button>
+                        </div>
+                    </div>
+
+                </div><!-- /cpViewForm -->
+
+            </div><!-- /window-body -->
+        </div><!-- /contasPagarDiv -->
+
     </main>
 
     <div id="modalPesquisa" class="spotlight-modal" style="display: none;">
@@ -485,6 +944,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Toast container global -->
+    <div id="toastContainer"></div>
 
     <script src = "./js/app.js"></script>
 

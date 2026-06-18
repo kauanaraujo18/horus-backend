@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/relatorios")
-@CrossOrigin(origins = "*") 
 public class BarcodeController {
 
     // Injeção dos serviços de geração de PDF

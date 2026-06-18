@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horus | Painel Administrativo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="./css/admin.css">
+</head>
+<body>
+
+    <!-- ── LOGIN (somente master) ─────────────────────────────────────── -->
+    <div id="loginOverlay" class="login-overlay">
+        <div class="login-card">
+            <svg class="logo-admin" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="gradLogoAdmin" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#6366f1"/>
+                        <stop offset="100%" style="stop-color:#8b5cf6"/>
+                    </linearGradient>
+                </defs>
+                <path d="M50 15 L85 35 L85 75 L50 95 L15 75 L15 35 Z" fill="none" stroke="url(#gradLogoAdmin)" stroke-width="4" stroke-linejoin="round"/>
+                <path d="M50 15 L50 95 M15 35 L50 55 L85 35 M15 75 L50 55 L85 75" fill="none" stroke="url(#gradLogoAdmin)" stroke-width="2" stroke-linejoin="round" opacity="0.6"/>
+                <path d="M32 45 L50 55 L68 45 M32 65 L50 75 L68 65" fill="none" stroke="url(#gradLogoAdmin)" stroke-width="3" stroke-linejoin="round"/>
+            </svg>
+            <h1>Horus Admin</h1>
+            <div class="admin-tag"><i class="ph ph-shield-star"></i> Acesso restrito • Master</div>
+
+            <div id="loginErro" class="login-erro"></div>
+
+            <form id="formLoginAdmin">
+                <div class="input-group">
+                    <label for="adminLogin">Login</label>
+                    <input type="text" id="adminLogin" placeholder="Seu login master" autocomplete="username" required>
+                </div>
+                <div class="input-group">
+                    <label for="adminSenha">Senha</label>
+                    <input type="password" id="adminSenha" placeholder="Sua senha" autocomplete="current-password" required>
+                </div>
+                <button type="submit" id="btnLoginAdmin" class="btn-primary w-full">
+                    <i class="ph ph-lock-key-open"></i> Entrar no painel
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ── SIDEBAR ─────────────────────────────────────────────────────── -->
+    <nav class="admin-sidebar">
+        <div class="admin-brand">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <path d="M50 15 L85 35 L85 75 L50 95 L15 75 L15 35 Z" fill="none" stroke="url(#gradLogoAdmin)" stroke-width="5" stroke-linejoin="round"/>
+                <path d="M50 15 L50 95 M15 35 L50 55 L85 35 M15 75 L50 55 L85 75" fill="none" stroke="url(#gradLogoAdmin)" stroke-width="2.5" stroke-linejoin="round" opacity="0.6"/>
+            </svg>
+            <div class="brand-text">Horus<small>Painel Master</small></div>
+        </div>
+        <ul class="admin-nav">
+            <li><button class="admin-nav-btn active" data-view="dashboard"><i class="ph ph-squares-four"></i> Visão Geral</button></li>
+            <li><button class="admin-nav-btn" data-view="empresas"><i class="ph ph-buildings"></i> Empresas</button></li>
+            <li><button class="admin-nav-btn" data-view="usuarios"><i class="ph ph-users-three"></i> Usuários &amp; Permissões</button></li>
+        </ul>
+        <div class="admin-logout">
+            <button class="admin-nav-btn" id="btnLogout"><i class="ph ph-sign-out"></i> Sair</button>
+        </div>
+    </nav>
+
+    <!-- ── MAIN ────────────────────────────────────────────────────────── -->
+    <main class="admin-main">
+        <header class="admin-topbar">
+            <span id="topbarTitle" class="topbar-title">Visão Geral</span>
+            <div class="topbar-user">
+                <i class="ph ph-user-circle" style="font-size:18px;"></i>
+                <span id="nomeMaster">—</span>
+                <span class="master-chip">Master</span>
+            </div>
+        </header>
+
+        <div class="admin-content">
+
+            <!-- VIEW: DASHBOARD -->
+            <section id="view-dashboard" class="view active">
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-icon"><i class="ph ph-buildings"></i></div>
+                        <div><div class="kpi-label">Empresas</div><div class="kpi-value" id="kpiEmpresas">—</div></div>
+                    </div>
+                    <div class="kpi-card green">
+                        <div class="kpi-icon" style="background:rgba(16,185,129,0.10);color:#059669;"><i class="ph ph-check-circle"></i></div>
+                        <div><div class="kpi-label">Empresas Ativas</div><div class="kpi-value" id="kpiAtivas">—</div></div>
+                    </div>
+                    <div class="kpi-card amber">
+                        <div class="kpi-icon" style="background:rgba(245,158,11,0.10);color:#b45309;"><i class="ph ph-users-three"></i></div>
+                        <div><div class="kpi-label">Usuários</div><div class="kpi-value" id="kpiUsuarios">—</div></div>
+                    </div>
+                    <div class="kpi-card red">
+                        <div class="kpi-icon" style="background:rgba(239,68,68,0.08);color:#dc2626;"><i class="ph ph-package"></i></div>
+                        <div><div class="kpi-label">Produtos</div><div class="kpi-value" id="kpiProdutos">—</div></div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon"><i class="ph ph-shopping-cart"></i></div>
+                        <div><div class="kpi-label">Vendas</div><div class="kpi-value" id="kpiVendas">—</div></div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header"><span class="panel-title">Empresas recentes</span></div>
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead><tr><th>Empresa</th><th>CNPJ</th><th>Proprietário</th><th class="align-center">Status</th></tr></thead>
+                            <tbody id="tbodyDashEmpresas"><tr class="empty-row"><td colspan="4"><i class="ph ph-spinner ph-spin"></i> Carregando...</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: EMPRESAS -->
+            <section id="view-empresas" class="view">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Gestão de Empresas</span>
+                        <div class="panel-tools">
+                            <input type="text" id="filtroEmpresas" placeholder="Buscar por razão social, fantasia ou CNPJ...">
+                            <button class="btn-primary" id="btnNovaEmpresa"><i class="ph ph-plus"></i> Nova Empresa</button>
+                        </div>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th class="align-center">Logo</th>
+                                    <th>Razão Social / Fantasia</th>
+                                    <th>CNPJ</th>
+                                    <th>Proprietário</th>
+                                    <th class="align-center">Status</th>
+                                    <th class="align-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyEmpresas"><tr class="empty-row"><td colspan="6"><i class="ph ph-spinner ph-spin"></i> Carregando...</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: USUÁRIOS -->
+            <section id="view-usuarios" class="view">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Usuários &amp; Permissões</span>
+                        <div class="panel-tools">
+                            <select id="filtroEmpresaUsuarios"><option value="">Todas as empresas</option></select>
+                            <input type="text" id="filtroUsuarios" placeholder="Buscar por nome ou login...">
+                            <button class="btn-primary" id="btnNovoUsuario"><i class="ph ph-user-plus"></i> Novo Usuário</button>
+                        </div>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Login</th>
+                                    <th>Empresa</th>
+                                    <th class="align-center">Perfil</th>
+                                    <th class="align-center">Permissões</th>
+                                    <th class="align-center">Status</th>
+                                    <th class="align-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyUsuarios"><tr class="empty-row"><td colspan="7"><i class="ph ph-spinner ph-spin"></i> Carregando...</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- ── MODAL: EMPRESA ──────────────────────────────────────────────── -->
+    <div id="modalEmpresa" class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="tituloModalEmpresa">Nova Empresa</h3>
+                <button class="modal-close" data-close="modalEmpresa"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="empId">
+                <div class="form-grid-2">
+                    <div class="input-group span-2"><label>Razão Social *</label><input type="text" id="empRazao" required></div>
+                    <div class="input-group"><label>Nome Fantasia</label><input type="text" id="empFantasia"></div>
+                    <div class="input-group"><label>CNPJ</label><input type="text" id="empCnpj" placeholder="00.000.000/0000-00"></div>
+                    <div class="input-group"><label>Proprietário</label><input type="text" id="empProprietario"></div>
+                    <div class="input-group"><label>CPF do Proprietário</label><input type="text" id="empCpf"></div>
+                    <div class="input-group"><label>Telefone</label><input type="tel" id="empTelefone"></div>
+                    <div class="input-group"><label>E-mail</label><input type="email" id="empEmail"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" data-close="modalEmpresa">Cancelar</button>
+                <button class="btn-primary" id="btnSalvarEmpresa"><i class="ph ph-floppy-disk"></i> Salvar Empresa</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── MODAL: LOGO ─────────────────────────────────────────────────── -->
+    <div id="modalLogo" class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="tituloModalLogo">Logomarca da Empresa</h3>
+                <button class="modal-close" data-close="modalLogo"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div id="logoPreviewArea" class="logo-preview-area" style="display:none;">
+                    <img id="logoPreviewImg" alt="Logo atual">
+                </div>
+                <div id="logoDrop" class="logo-drop">
+                    <i class="ph ph-upload-simple"></i>
+                    Arraste a imagem aqui ou clique para selecionar
+                    <input type="file" id="logoFile" accept="image/png,image/jpeg" style="display:none;">
+                </div>
+                <p class="logo-hint">PNG ou JPEG, até 1 MB. Esta logo será impressa nas etiquetas da empresa (fundo escuro — prefira logos claras).</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-action danger" id="btnRemoverLogo"><i class="ph ph-trash"></i> Remover logo</button>
+                <button class="btn-secondary" data-close="modalLogo">Fechar</button>
+                <button class="btn-primary" id="btnEnviarLogo" disabled><i class="ph ph-upload-simple"></i> Enviar Logo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── MODAL: USUÁRIO ──────────────────────────────────────────────── -->
+    <div id="modalUsuario" class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="tituloModalUsuario">Novo Usuário</h3>
+                <button class="modal-close" data-close="modalUsuario"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="usuId">
+                <div class="form-grid-2">
+                    <div class="input-group"><label>Nome *</label><input type="text" id="usuNome" required></div>
+                    <div class="input-group"><label>Login (e-mail) *</label><input type="text" id="usuLogin" required></div>
+                    <div class="input-group" id="grupoSenha"><label>Senha inicial * (mín. 8)</label><input type="password" id="usuSenha"></div>
+                    <div class="input-group">
+                        <label>Perfil *</label>
+                        <select id="usuPerfil">
+                            <option value="operador">Operador</option>
+                            <option value="admin">Admin</option>
+                            <option value="master">Master</option>
+                        </select>
+                    </div>
+                    <div class="input-group span-2"><label>Empresa *</label><select id="usuEmpresa"></select></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" data-close="modalUsuario">Cancelar</button>
+                <button class="btn-primary" id="btnSalvarUsuario"><i class="ph ph-floppy-disk"></i> Salvar Usuário</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── MODAL: MATRIZ DE PERMISSÕES ─────────────────────────────────── -->
+    <div id="modalPermissoes" class="modal-backdrop">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 id="tituloModalPermissoes">Permissões do Usuário</h3>
+                <button class="modal-close" data-close="modalPermissoes"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="perm-toolbar">
+                    <button class="btn-action brand" id="btnPermTodas"><i class="ph ph-checks"></i> Marcar tudo</button>
+                    <button class="btn-action" id="btnPermNenhuma"><i class="ph ph-x"></i> Limpar tudo</button>
+                </div>
+                <table class="perm-matrix">
+                    <thead>
+                        <tr>
+                            <th>Módulo</th>
+                            <th>Criar</th>
+                            <th>Ver</th>
+                            <th>Editar</th>
+                            <th>Excluir</th>
+                            <th>Todos</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyPermissoes"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" data-close="modalPermissoes">Cancelar</button>
+                <button class="btn-primary" id="btnSalvarPermissoes"><i class="ph ph-shield-check"></i> Salvar Permissões</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toastContainer"></div>
+
+    <script src="./js/admin.js"></script>
+</body>
+</html>

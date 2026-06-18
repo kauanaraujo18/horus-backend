@@ -75,10 +75,16 @@ public class EtiquetaService {
         // ==========================================
         // 🚀 6. OTIMIZAÇÃO: Cache da Logo na Memória
         // ==========================================
-        // Fazemos o download da logo APENAS UMA VEZ antes do laço iniciar.
+        // Prioridade: logo exclusiva da empresa (upload via painel admin);
+        // fallback: logo padrão Horus. Carregada UMA vez antes do laço.
         Image logoCache = null;
         try {
-            logoCache = Image.getInstance(CAMINHO_LOGO);
+            byte[] logoEmpresa = produto.getEmpresa().getLogo();
+            if (logoEmpresa != null && logoEmpresa.length > 0) {
+                logoCache = Image.getInstance(logoEmpresa);
+            } else {
+                logoCache = Image.getInstance(CAMINHO_LOGO);
+            }
             logoCache.scaleToFit(80, 40);
             logoCache.setAlignment(Element.ALIGN_CENTER);
         } catch (Exception e) {

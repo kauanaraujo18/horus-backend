@@ -6,14 +6,21 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.horus.projeto.enums.ReferenciaMedida;
+import com.horus.projeto.enums.TipoProduto;
+import com.horus.projeto.enums.UnidadeMedida;
+
 import java.io.Serializable;
 
 @Entity
 @Table(name = "produto")
-@Data 
-@NoArgsConstructor 
-@AllArgsConstructor 
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class ProdutoEntity implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -23,7 +30,7 @@ public class ProdutoEntity implements Serializable {
     @Column(name = "cod_produto")
     private Long codProduto;
 
-    @Column(name = "codigo", nullable = false, unique = true)
+    @Column(name = "codigo", nullable = true)
     private String codigo;
 
     @Column(name = "nome", nullable = false)
@@ -32,7 +39,9 @@ public class ProdutoEntity implements Serializable {
     @Column(name = "valor", nullable = false)
     private BigDecimal valor;
 
-    // NOVO CAMPO: Mapeamento do Estoque
+    @Column(name = "valor_custo")
+    private BigDecimal valorCusto;
+
     @Column(name = "quantidade_estoque", nullable = false)
     private Integer quantidadeEstoque;
 
@@ -40,12 +49,33 @@ public class ProdutoEntity implements Serializable {
     @JoinColumn(name = "empresa_id")
     @JsonIgnore
     private EmpresaEntity empresa;
-    
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo", length = 4)
+    private TipoProduto tipo;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "unidade_medida", length = 20)
+    private UnidadeMedida unidadeMedida;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "referencia", length = 30)
+    private ReferenciaMedida referencia;
+
+    @OneToMany(mappedBy = "produtoFinal", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<ProdutoMateriaPrimaEntity> composicao = new ArrayList<>();
+
     @PrePersist
     public void prePersist() {
-        // Garantia arquitetural: Todo produto nasce com estoque preenchido, mesmo que não enviado
         if (this.quantidadeEstoque == null) {
             this.quantidadeEstoque = 0;
+        }
+        if (this.tipo == null) {
+            this.tipo = TipoProduto.R;
+        }
+        if (this.composicao == null) {
+            this.composicao = new ArrayList<>();
         }
     }
 }

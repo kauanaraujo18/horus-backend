@@ -51,6 +51,7 @@ public class UsuarioEntity implements UserDetails {
     public String getLogin() { return login; }
     public void setLogin(String login) { this.login = login; }
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public String getSenha() { return senha; }
     public void setSenha(String senha) { this.senha = senha; }
 
@@ -71,21 +72,26 @@ public class UsuarioEntity implements UserDetails {
     // --- MÉTODOS OBRIGATÓRIOS DO SPRING SECURITY ---
 
     @Override
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        // Se a lista de permissões for nula (usuário novo), devolvemos uma lista vazia para não quebrar o Java
-        if (this.permissoes == null || this.permissoes.isEmpty()) {
-            return List.of(); 
+        var authorities = new java.util.ArrayList<GrantedAuthority>();
+
+        // O perfil vira uma ROLE do Spring Security (ex: master → ROLE_MASTER)
+        if (this.perfil != null && !this.perfil.isBlank()) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + this.perfil.trim().toUpperCase()));
         }
-        
-        // Se tiver permissões, converte para o formato do Spring Security
-        return this.permissoes.stream()
-                .map(permissao -> new SimpleGrantedAuthority(permissao.getNome()))
-                .toList();
+
+        // Permissões granulares (ex: PRODUTO_CRIAR, VENDA_VER)
+        if (this.permissoes != null) {
+            this.permissoes.forEach(p -> authorities.add(new SimpleGrantedAuthority(p.getNome())));
+        }
+        return authorities;
     }
 
     @Override
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public String getPassword() {
-        return this.senha; 
+        return this.senha;
     }
 
     @Override
@@ -103,5 +109,5 @@ public class UsuarioEntity implements UserDetails {
     public boolean isCredentialsNonExpired() { return true; }
 
     @Override
-    public boolean isEnabled() { return true; }
+    public boolean isEnabled() { return ativo == null || ativo; }
 }

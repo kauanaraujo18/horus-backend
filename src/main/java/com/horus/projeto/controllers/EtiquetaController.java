@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/etiquetas")
-@CrossOrigin(origins = "*")
 public class EtiquetaController {
 
     @Autowired

@@ -14,7 +14,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/vendas")
-@CrossOrigin(origins = "*") // Libera acesso para seu HTML local
 public class VendaController {
 
     @Autowired

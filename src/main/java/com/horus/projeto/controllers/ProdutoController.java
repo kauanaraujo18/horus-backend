@@ -1,7 +1,11 @@
 package com.horus.projeto.controllers;
 
+import com.horus.projeto.dto.MateriaPrimaItemDTO;
+import com.horus.projeto.dto.ProdutoEsquemaNodeDTO;
 import com.horus.projeto.entities.ProdutoEntity;
+import com.horus.projeto.entities.ProdutoMateriaPrimaEntity;
 import com.horus.projeto.entities.UsuarioEntity;
+import com.horus.projeto.enums.TipoProduto;
 import com.horus.projeto.repositories.ProdutoRepository;
 import com.horus.projeto.services.ProdutoService;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +22,6 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/produtos")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class ProdutoController {
     
     private final ProdutoService service;
@@ -26,64 +29,72 @@ public class ProdutoController {
     @Autowired
     private ProdutoRepository repository;
 
+    private Long getEmpresaIdLogada() {
+        var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return usuarioLogado.getEmpresa().getId();
+    }
+
+    @GetMapping("/esquema")
+    public ResponseEntity<Map<String, Object>> esquema() {
+        List<ProdutoEsquemaNodeDTO> raizes = service.buildEsquema(getEmpresaIdLogada());
+        return ResponseEntity.ok(Map.of(
+                "nome", "Todos os Produtos",
+                "tipo", "ROOT",
+                "children", raizes
+        ));
+    }
+
+    @GetMapping("/analise-lucro")
+    public ResponseEntity<List<Map<String, Object>>> analiseLucro() {
+        return ResponseEntity.ok(service.analiseLucro(getEmpresaIdLogada()));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ProdutoEntity> buscarPorId(@PathVariable Long id) {
         try {
-            return ResponseEntity.ok(service.buscarPorId(id));
+            return ResponseEntity.ok(service.buscarPorId(id, getEmpresaIdLogada()));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
     }
 
-    // ========================================================================
-    // ENDPOINT ATUALIZADO: Agora suporta a busca em tempo real do Spotlight
-    // ========================================================================
     @GetMapping
     public ResponseEntity<List<ProdutoEntity>> listarTodos(@RequestParam(required = false) String nome) {
-        // 1. Pescamos o usuário logado da memória do Spring Security
-        var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long idEmpresaLogada = getEmpresaIdLogada();
         
-        // 2. Extraímos o ID da empresa dele
-        Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
-        
-        // 3. Se houver um termo de pesquisa, usa a query nova (Tempo Real)
         if (nome != null && !nome.trim().isEmpty()) {
             List<ProdutoEntity> resultados = repository.buscarPorNomeOuCodigoEEmpresa(nome, idEmpresaLogada);
             return ResponseEntity.ok(resultados);
         }
         
-        // 4. Se não houver termo (Grid Inicial), lista todos os produtos da empresa
         List<ProdutoEntity> produtos = service.listarPorEmpresa(idEmpresaLogada);
         return ResponseEntity.ok(produtos);
     }
 
     @PostMapping
-    public ResponseEntity<ProdutoEntity> salvar(@RequestBody ProdutoEntity produto) {
-        var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
-        ProdutoEntity produtoSalvo = service.salvar(produto, idEmpresaLogada);
-        return ResponseEntity.ok(produtoSalvo);
+    public ResponseEntity<?> salvar(@RequestBody ProdutoEntity produto) {
+        try {
+            return ResponseEntity.ok(service.salvar(produto, getEmpresaIdLogada()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("erro", e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ProdutoEntity> atualizar(@PathVariable Long id, @RequestBody ProdutoEntity produto) {
-        var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
-        produto.setCodProduto(id); 
-        ProdutoEntity produtoAtualizado = service.salvar(produto, idEmpresaLogada);
-        return ResponseEntity.ok(produtoAtualizado);
+    public ResponseEntity<?> atualizar(@PathVariable Long id, @RequestBody ProdutoEntity produto) {
+        try {
+            produto.setCodProduto(id);
+            return ResponseEntity.ok(service.salvar(produto, getEmpresaIdLogada()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("erro", e.getMessage()));
+        }
     }
 
     @PatchMapping("/{id}")
     public ResponseEntity<ProdutoEntity> atualizarEstoqueParcial(@PathVariable Long id, @RequestBody Map<String, Integer> payload) {
         try {
-            var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
-            ProdutoEntity produtoExistente = service.buscarPorId(id);
-
-            if (!produtoExistente.getEmpresa().getId().equals(idEmpresaLogada)) {
-                return ResponseEntity.status(403).build(); 
-            }
+            // Usa o método blindado do service que já garante a posse da empresa
+            ProdutoEntity produtoExistente = service.buscarPorId(id, getEmpresaIdLogada());
 
             if (payload.containsKey("quantidadeEstoque")) {
                 produtoExistente.setQuantidadeEstoque(payload.get("quantidadeEstoque"));
@@ -92,22 +103,19 @@ public class ProdutoController {
             }
             return ResponseEntity.badRequest().build();
         } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(403).build(); // Retorna 403 para não revelar se o ID existe ou não
         }
     }
 
-    // Nota: O endpoint antigo "/pesquisar" foi mantido mas não é mais necessário para o fluxo principal.
     @GetMapping("/pesquisar")
     public ResponseEntity<List<ProdutoEntity>> pesquisarProdutos(@RequestParam String termo) {
-        List<ProdutoEntity> produtos = repository.findByNomeContainingIgnoreCase(termo);
+        List<ProdutoEntity> produtos = repository.findByNomeContainingIgnoreCaseAndEmpresaId(termo, getEmpresaIdLogada());
         return ResponseEntity.ok(produtos);
     }
 
     @GetMapping("/codigo/{codigo}")
     public ResponseEntity<?> buscarPorCodigo(@PathVariable String codigo) {
-        var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
-        Optional<ProdutoEntity> produto = repository.findByCodigoAndEmpresaId(codigo, idEmpresaLogada);
+        Optional<ProdutoEntity> produto = repository.findByCodigoAndEmpresaId(codigo, getEmpresaIdLogada());
         
         if (produto.isPresent()) {
             return ResponseEntity.ok(produto.get());
@@ -119,10 +127,65 @@ public class ProdutoController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletar(@PathVariable Long id) {
         try {
-            service.deletar(id);
+            service.deletar(id, getEmpresaIdLogada());
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(403).build();
+        }
+    }
+
+    // =========================================================
+    // MÓDULO DE PRODUÇÃO - Matérias-Primas
+    // =========================================================
+
+    @GetMapping("/{id}/materias-primas")
+    public ResponseEntity<List<ProdutoMateriaPrimaEntity>> listarMateriasPrimas(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(service.listarMateriasPrimas(id, getEmpresaIdLogada()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(403).build();
+        }
+    }
+
+    // Substitui toda a composição do produto (body: [{id, quantidade}, ...])
+    @PutMapping("/{id}/materias-primas")
+    public ResponseEntity<?> vincularMateriasPrimas(@PathVariable Long id,
+                                                     @RequestBody List<MateriaPrimaItemDTO> itens) {
+        try {
+            return ResponseEntity.ok(service.vincularMateriasPrimas(id, itens, getEmpresaIdLogada()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("erro", e.getMessage()));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Acesso Negado")) {
+                return ResponseEntity.status(403).body(Map.of("erro", e.getMessage()));
+            }
+            return ResponseEntity.status(500).body(Map.of("erro", "Erro interno ao vincular matérias-primas: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}/materias-primas/{mpId}")
+    public ResponseEntity<ProdutoEntity> desvincularMateriaPrima(@PathVariable Long id,
+                                                                  @PathVariable Long mpId) {
+        try {
+            return ResponseEntity.ok(service.desvincularMateriaPrima(id, mpId, getEmpresaIdLogada()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(403).build();
+        }
+    }
+
+    // Retorna apenas produtos que podem ser usados como matéria-prima (MP ou MPPF)
+    @GetMapping("/materias-primas-disponiveis")
+    public ResponseEntity<List<ProdutoEntity>> listarMateriaisPrimasDisponiveis() {
+        return ResponseEntity.ok(service.listarMateriaisPrimasDisponiveis(getEmpresaIdLogada()));
+    }
+
+    @GetMapping("/tipo/{tipo}")
+    public ResponseEntity<List<ProdutoEntity>> listarPorTipo(@PathVariable String tipo) {
+        try {
+            TipoProduto tipoProduto = TipoProduto.valueOf(tipo.toUpperCase());
+            return ResponseEntity.ok(service.listarPorTipo(tipoProduto, getEmpresaIdLogada()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
         }
     }
 }
