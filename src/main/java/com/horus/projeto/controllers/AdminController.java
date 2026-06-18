@@ -24,11 +24,26 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AdminController {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AdminController.class);
+
     private final AdminService service;
 
     private Long getUsuarioLogadoId() {
         var usuario = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return usuario.getId();
+    }
+
+    /**
+     * Captura qualquer erro não tratado das rotas admin e devolve a causa real
+     * (mensagem do banco) como JSON, em vez de um 500 cru. Painel é master-only.
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> tratarErroAdmin(Exception e) {
+        Throwable raiz = e;
+        while (raiz.getCause() != null && raiz.getCause() != raiz) raiz = raiz.getCause();
+        log.error("Erro no painel admin", e);
+        String msg = raiz.getMessage() != null ? raiz.getMessage() : raiz.getClass().getSimpleName();
+        return ResponseEntity.status(500).body(Map.of("erro", msg));
     }
 
     /* ── Dashboard ──────────────────────────────────────────────────────── */
