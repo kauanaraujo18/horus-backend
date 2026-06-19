@@ -22,6 +22,7 @@ public class AdminService {
     private static final Set<String> PERFIS_VALIDOS = Set.of("master", "admin", "operador");
     private static final Set<String> TIPOS_LOGO = Set.of("image/png", "image/jpeg", "image/jpg");
     private static final long TAMANHO_MAX_LOGO = 1024 * 1024; // 1 MB
+    private static final String SENHA_PADRAO_INICIAL = "Mudar@123"; // mesma do cadastro publico
 
     private final EmpresaRepository empresaRepository;
     private final UsuarioRepository usuarioRepository;
@@ -71,7 +72,36 @@ public class AdminService {
             return empresaRepository.save(existente);
         }
         dados.setAtivo(true);
-        return empresaRepository.save(dados);
+        EmpresaEntity salva = empresaRepository.save(dados);
+        criarUsuarioInicialDaEmpresa(salva);
+        return salva;
+    }
+
+    /**
+     * Cria o primeiro usuário (admin) da empresa a partir do e-mail do proprietário,
+     * espelhando o que a procedure pr_registrar_nova_conta faz no cadastro público.
+     * A senha é gravada em TEXTO PLANO de propósito: a trigger BEFORE INSERT da tabela
+     * usuario aplica o BCrypt (mesmo mecanismo do cadastro público). NÃO criptografar aqui.
+     */
+    private void criarUsuarioInicialDaEmpresa(EmpresaEntity empresa) {
+        String login = empresa.getEmailProprietario();
+        if (login == null || login.isBlank()) {
+            return; // sem e-mail do proprietário não há login a definir
+        }
+        login = login.trim();
+        if (usuarioRepository.findByLogin(login).isPresent()) {
+            return; // já existe usuário com este login — não duplica
+        }
+        UsuarioEntity usuario = new UsuarioEntity();
+        usuario.setNome((empresa.getNomeProprietario() != null && !empresa.getNomeProprietario().isBlank())
+                ? empresa.getNomeProprietario().trim() : empresa.getRazaoSocial());
+        usuario.setLogin(login);
+        usuario.setSenha(SENHA_PADRAO_INICIAL); // plano; a trigger da tabela usuario aplica o BCrypt
+        usuario.setPerfil("admin");
+        usuario.setAtivo(true);
+        usuario.setEmpresa(empresa);
+        usuario.setPermissoes(new ArrayList<>());
+        usuarioRepository.save(usuario);
     }
 
     @Transactional
@@ -135,7 +165,7 @@ public class AdminService {
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setNome(nome.trim());
         usuario.setLogin(login.trim());
-        usuario.setSenha(passwordEncoder.encode(senha));
+        usuario.setSenha(senha); // texto plano: a trigger BEFORE INSERT da tabela usuario aplica o BCrypt
         usuario.setPerfil(perfil.toLowerCase());
         usuario.setAtivo(true);
         usuario.setEmpresa(buscarEmpresa(empresaId));
@@ -173,6 +203,8 @@ public class AdminService {
     public String resetarSenha(Long id) {
         UsuarioEntity usuario = buscarUsuario(id);
         String novaSenha = gerarSenhaAleatoria();
+        // Reset é UPDATE: a trigger BEFORE INSERT da tabela usuario NÃO dispara aqui,
+        // então o BCrypt precisa ser feito no Java mesmo (hash único, correto).
         usuario.setSenha(passwordEncoder.encode(novaSenha));
         usuarioRepository.save(usuario);
         return novaSenha; // exibida uma única vez no painel

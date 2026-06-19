@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,7 +36,6 @@ public class AdminSeeder implements CommandLineRunner {
     private final PermissaoRepository permissaoRepository;
     private final UsuarioRepository usuarioRepository;
     private final EmpresaRepository empresaRepository;
-    private final PasswordEncoder passwordEncoder;
 
     @Value("${admin.master.login:}")
     private String masterLogin;
@@ -47,12 +45,10 @@ public class AdminSeeder implements CommandLineRunner {
 
     public AdminSeeder(PermissaoRepository permissaoRepository,
                        UsuarioRepository usuarioRepository,
-                       EmpresaRepository empresaRepository,
-                       PasswordEncoder passwordEncoder) {
+                       EmpresaRepository empresaRepository) {
         this.permissaoRepository = permissaoRepository;
         this.usuarioRepository = usuarioRepository;
         this.empresaRepository = empresaRepository;
-        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -104,7 +100,9 @@ public class AdminSeeder implements CommandLineRunner {
         UsuarioEntity master = new UsuarioEntity();
         master.setNome("Master Horus");
         master.setLogin(masterLogin);
-        master.setSenha(passwordEncoder.encode(masterSenha));
+        // Texto plano de propósito: a trigger BEFORE INSERT da tabela usuario aplica o BCrypt.
+        // (Criptografar aqui geraria hash duplo e o master não conseguiria logar.)
+        master.setSenha(masterSenha);
         master.setPerfil("master");
         master.setAtivo(true);
         master.setEmpresa(empresaAdmin);

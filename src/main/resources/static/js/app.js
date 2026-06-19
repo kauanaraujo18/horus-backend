@@ -1340,10 +1340,43 @@ async function gerarRelatorioVendasPDF() {
 
 // ── ESQUEMA DE PRODUÇÕES ───────────────────────────────────────────────────────
 
+// Abre uma aba IMEDIATAMENTE (ainda no gesto de clique) com uma tela de carregamento.
+// Necessário porque chamar window.open() depois de um await faz o navegador bloquear o pop-up.
+function abrirAbaCarregando() {
+    const aba = window.open('', '_blank');
+    if (aba) {
+        aba.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Carregando…</title></head>'
+            + '<body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;'
+            + 'background:#0f172a;color:#94a3b8;font-family:-apple-system,Segoe UI,sans-serif;font-size:14px;">'
+            + '<i>Carregando…</i></body></html>');
+    }
+    return aba;
+}
+
+// Navega a aba já aberta para o HTML final (via blob). Faz fallback se o pop-up foi bloqueado.
+function renderizarNaAba(aba, html) {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url  = window.URL.createObjectURL(blob);
+    if (aba) {
+        aba.location.href = url;
+    } else {
+        const fallback = window.open(url, '_blank');
+        if (!fallback) {
+            window.URL.revokeObjectURL(url);
+            alert('Seu navegador bloqueou a nova aba. Permita pop-ups para este site e tente novamente.');
+            return;
+        }
+    }
+    setTimeout(() => window.URL.revokeObjectURL(url), 15000);
+}
+
 async function abrirEsquemaProducoes() {
     const btn = document.getElementById('btnEsquemaProducoes');
     const txtOriginal = btn ? btn.innerHTML : '';
     if (btn) { btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i><span>Carregando...</span>'; btn.disabled = true; }
+
+    // Abre a aba já no clique para não ser bloqueada (o conteúdo só fica pronto após o await)
+    const aba = abrirAbaCarregando();
 
     try {
         const res = await fetch(`${API_URL}/api/produtos/esquema`, { headers: getAuthHeader() });
@@ -1353,12 +1386,10 @@ async function abrirEsquemaProducoes() {
         const totalNos = contarNos(treeData) - 1; // -1 para excluir raiz virtual
 
         const htmlDiagrama = gerarHtmlDiagrama(treeData, totalNos);
-        const blob = new Blob([htmlDiagrama], { type: 'text/html;charset=utf-8' });
-        const url  = window.URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        setTimeout(() => window.URL.revokeObjectURL(url), 15000);
+        renderizarNaAba(aba, htmlDiagrama);
 
     } catch (e) {
+        if (aba) aba.close();
         alert('Erro ao abrir esquema: ' + e.message);
     } finally {
         if (btn) { btn.innerHTML = txtOriginal; btn.disabled = false; }
@@ -1735,6 +1766,9 @@ async function abrirDashboardNoturno() {
     const btnIcon = document.querySelector('#dashboardBtn i');
     if (btnIcon) btnIcon.className = 'ph ph-spinner ph-spin';
 
+    // Abre a aba já no clique para não ser bloqueada (o conteúdo só fica pronto após o await)
+    const aba = abrirAbaCarregando();
+
     try {
         const [resVendas, resContas, resAnalise] = await Promise.all([
             fetch(`${API_URL}/api/vendas`,                  { headers: getAuthHeader() }),
@@ -1749,12 +1783,10 @@ async function abrirDashboardNoturno() {
 
         const empresaNome = localStorage.getItem('horus_empresa_nome') || 'Horus';
         const html = gerarHtmlDashboardNoturno(vendas, contas, analise, empresaNome);
-        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        const url  = window.URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        setTimeout(() => window.URL.revokeObjectURL(url), 15000);
+        renderizarNaAba(aba, html);
 
     } catch (e) {
+        if (aba) aba.close();
         console.error(e);
         alert('Erro ao abrir o dashboard: ' + e.message);
     } finally {
