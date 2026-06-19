@@ -272,7 +272,7 @@ public class ProdutoService {
         if (!visitados.add(produto.getCodProduto())) {
             // Ciclo detectado — retorna como folha
             return new ProdutoEsquemaNodeDTO(produto.getCodProduto(),
-                    produto.getNome() + " ↺", produto.getTipo().name(),
+                    produto.getNome() + " ↺", tipoNome(produto),
                     produto.getQuantidadeEstoque(), quantidade, List.of());
         }
 
@@ -289,6 +289,11 @@ public class ProdutoService {
                 .collect(Collectors.toList());
 
         return new ProdutoEsquemaNodeDTO(produto.getCodProduto(), produto.getNome(),
-                produto.getTipo().name(), produto.getQuantidadeEstoque(), quantidade, children);
+                tipoNome(produto), produto.getQuantidadeEstoque(), quantidade, children);
+    }
+
+    // Nome do tipo à prova de nulo (há produtos cadastrados sem tipo definido).
+    private String tipoNome(ProdutoEntity produto) {
+        return produto.getTipo() != null ? produto.getTipo().name() : null;
     }
 }

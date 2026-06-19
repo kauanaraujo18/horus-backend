@@ -78,10 +78,8 @@ public class AdminService {
     }
 
     /**
-     * Cria o primeiro usuário (admin) da empresa a partir do e-mail do proprietário,
-     * espelhando o que a procedure pr_registrar_nova_conta faz no cadastro público.
-     * A senha é gravada em TEXTO PLANO de propósito: a trigger BEFORE INSERT da tabela
-     * usuario aplica o BCrypt (mesmo mecanismo do cadastro público). NÃO criptografar aqui.
+     * Cria o primeiro usuário (admin) da empresa a partir do e-mail do proprietário.
+     * A senha é criptografada com BCrypt aqui no Java (este banco não tem trigger de hash).
      */
     private void criarUsuarioInicialDaEmpresa(EmpresaEntity empresa) {
         String login = empresa.getEmailProprietario();
@@ -96,7 +94,7 @@ public class AdminService {
         usuario.setNome((empresa.getNomeProprietario() != null && !empresa.getNomeProprietario().isBlank())
                 ? empresa.getNomeProprietario().trim() : empresa.getRazaoSocial());
         usuario.setLogin(login);
-        usuario.setSenha(SENHA_PADRAO_INICIAL); // plano; a trigger da tabela usuario aplica o BCrypt
+        usuario.setSenha(passwordEncoder.encode(SENHA_PADRAO_INICIAL));
         usuario.setPerfil("admin");
         usuario.setAtivo(true);
         usuario.setEmpresa(empresa);
@@ -165,7 +163,7 @@ public class AdminService {
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setNome(nome.trim());
         usuario.setLogin(login.trim());
-        usuario.setSenha(senha); // texto plano: a trigger BEFORE INSERT da tabela usuario aplica o BCrypt
+        usuario.setSenha(passwordEncoder.encode(senha)); // BCrypt no Java (banco não tem trigger de hash)
         usuario.setPerfil(perfil.toLowerCase());
         usuario.setAtivo(true);
         usuario.setEmpresa(buscarEmpresa(empresaId));
@@ -203,9 +201,7 @@ public class AdminService {
     public String resetarSenha(Long id) {
         UsuarioEntity usuario = buscarUsuario(id);
         String novaSenha = gerarSenhaAleatoria();
-        // Reset é UPDATE: a trigger BEFORE INSERT da tabela usuario NÃO dispara aqui,
-        // então o BCrypt precisa ser feito no Java mesmo (hash único, correto).
-        usuario.setSenha(passwordEncoder.encode(novaSenha));
+        usuario.setSenha(passwordEncoder.encode(novaSenha)); // BCrypt no Java
         usuarioRepository.save(usuario);
         return novaSenha; // exibida uma única vez no painel
     }
