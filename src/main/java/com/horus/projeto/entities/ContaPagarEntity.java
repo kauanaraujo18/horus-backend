@@ -55,6 +55,14 @@ public class ContaPagarEntity {
     @Column(name = "data_registro", nullable = false, updatable = false)
     private LocalDateTime dataRegistro;
 
+    /** Classe financeira ANALÍTICA (CUSTO/DESPESA) do título inteiro. */
+    @Column(name = "cod_classe")
+    private Long codClasse;
+
+    /** Conta financeira de onde o pagamento sai (informada na baixa). */
+    @Column(name = "cod_conta_financeira")
+    private Long codContaFinanceira;
+
     @ManyToOne
     @JoinColumn(name = "empresa_id")
     @JsonIgnore

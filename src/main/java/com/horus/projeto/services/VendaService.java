@@ -8,6 +8,7 @@ import com.horus.projeto.entities.EmpresaEntity;
 import com.horus.projeto.entities.ProdutoEntity;
 import com.horus.projeto.entities.ProdutoVendaEntity;
 import com.horus.projeto.entities.VendaEntity;
+import com.horus.projeto.enums.OrigemLancamento;
 import com.horus.projeto.enums.TipoProduto;
 import com.horus.projeto.repositories.EmpresaRepository;
 import com.horus.projeto.repositories.ProdutoRepository;
@@ -42,6 +43,8 @@ public class VendaService {
     @Autowired private VendaRepository vendaRepository;
     @Autowired private ProdutoRepository produtoRepository;
     @Autowired private EmpresaRepository empresaRepository;
+    @Autowired private LancamentoFinanceiroService lancamentoService;
+    @Autowired private ParametrosFinanceiroService parametrosService;
 
     @Transactional
     public VendaEntity registrarVenda(VendaRequestDTO dadosVenda, Long empresaId) {
@@ -130,7 +133,57 @@ public class VendaService {
         venda.setEmpresa(empresaRepository.getReferenceById(empresaId));
         venda.getItens().forEach(item -> item.setVenda(venda));
 
-        return vendaRepository.save(venda);
+        VendaEntity salva = vendaRepository.save(venda);
+
+        // ── Automação financeira: ENTRADA por classe × conta (rateio) ──────────────
+        // Dinheiro (líquido de troco) → Caixa padrão; Pix/Débito/Crédito → Banco padrão.
+        // Soma por classe = receita por categoria; soma por conta = dinheiro por conta.
+        // Best-effort: uma falha de classificação NUNCA derruba a venda.
+        gerarLancamentosDaVenda(salva, empresaId);
+
+        return salva;
+    }
+
+    private void gerarLancamentosDaVenda(VendaEntity venda, Long empresaId) {
+        // Itens com classe de receita (os únicos que podem ser lançados)
+        List<ProdutoVendaEntity> itens = new ArrayList<>();
+        for (ProdutoVendaEntity item : venda.getItens()) {
+            if (item.getProduto() != null && item.getProduto().getCodClassePadrao() != null) itens.add(item);
+        }
+        BigDecimal soma = itens.stream().map(i -> nvl(i.getValorTotalItem())).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (itens.isEmpty() || soma.signum() <= 0) return;
+
+        // Buckets de conta por forma de pagamento (caixa líquido de troco)
+        Long caixaPadrao = parametrosService.getCaixaPadrao(empresaId);
+        Long bancoPadrao = parametrosService.getBancoPadrao(empresaId);
+        BigDecimal valorCaixa = nvl(venda.getValorDinheiro()).subtract(nvl(venda.getTroco())).max(BigDecimal.ZERO);
+        BigDecimal valorBanco = nvl(venda.getValorPix()).add(nvl(venda.getValorCredito())).add(nvl(venda.getValorDebito()));
+
+        java.time.LocalDate dataMov = venda.getDataVenda().toLocalDate();
+        postarRateado(venda, empresaId, itens, soma, caixaPadrao, valorCaixa, dataMov);
+        postarRateado(venda, empresaId, itens, soma, bancoPadrao, valorBanco, dataMov);
+    }
+
+    /**
+     * Distribui o valor de um bucket (uma conta) entre os itens, proporcional ao valor de cada item.
+     * Usa arredondamento cumulativo: a soma dos lançamentos fica EXATA = valorBucket (sem sobra de centavos).
+     */
+    private void postarRateado(VendaEntity venda, Long empresaId, List<ProdutoVendaEntity> itens,
+                               BigDecimal soma, Long contaId, BigDecimal valorBucket, java.time.LocalDate dataMov) {
+        if (valorBucket.signum() <= 0) return;
+        BigDecimal acumPeso = BigDecimal.ZERO;
+        BigDecimal acumValor = BigDecimal.ZERO;
+        for (ProdutoVendaEntity item : itens) {
+            acumPeso = acumPeso.add(nvl(item.getValorTotalItem()));
+            BigDecimal alvo = valorBucket.multiply(acumPeso).divide(soma, 2, java.math.RoundingMode.HALF_UP);
+            BigDecimal share = alvo.subtract(acumValor);
+            acumValor = alvo;
+            if (share.signum() > 0) {
+                lancamentoService.postarSeValido(empresaId, item.getProduto().getCodClassePadrao(), share, dataMov,
+                        "Venda #" + venda.getCodVenda() + " - " + item.getProduto().getNome(),
+                        OrigemLancamento.VENDA, venda.getCodVenda(), contaId);
+            }
+        }
     }
 
     // ── Relatórios ──────────────────────────────────────────────────────────

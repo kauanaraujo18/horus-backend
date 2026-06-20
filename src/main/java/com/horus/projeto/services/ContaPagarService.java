@@ -4,6 +4,10 @@ import com.horus.projeto.dto.ContaPagarItemDTO;
 import com.horus.projeto.dto.ContaPagarParcelaDTO;
 import com.horus.projeto.dto.ContaPagarRequestDTO;
 import com.horus.projeto.entities.*;
+import com.horus.projeto.enums.NivelClasse;
+import com.horus.projeto.enums.OrigemLancamento;
+import com.horus.projeto.enums.TipoClasse;
+import com.horus.projeto.repositories.ClasseFinanceiraRepository;
 import com.horus.projeto.repositories.ContaPagarRepository;
 import com.horus.projeto.repositories.EmpresaRepository;
 import com.horus.projeto.repositories.ProdutoRepository;
@@ -23,6 +27,9 @@ public class ContaPagarService {
     private final ContaPagarRepository contaPagarRepository;
     private final ProdutoRepository produtoRepository;
     private final EmpresaRepository empresaRepository;
+    private final LancamentoFinanceiroService lancamentoService;
+    private final ClasseFinanceiraRepository classeRepo;
+    private final com.horus.projeto.repositories.ContaFinanceiraRepository contaFinanceiraRepo;
 
     /* ------------------------------------------------------------------
        CONSULTA
@@ -56,6 +63,10 @@ public class ContaPagarService {
         conta.setNumeroNotaFiscal(dto.getNumeroNotaFiscal() != null ? dto.getNumeroNotaFiscal().trim() : null);
         conta.setPaga(dto.getPaga() != null && dto.getPaga());
         conta.setEmpresa(empresaRepository.getReferenceById(empresaId));
+        validarClasseConta(empresaId, dto.getCodClasse());
+        conta.setCodClasse(dto.getCodClasse());
+        validarContaSaida(empresaId, dto.getCodContaFinanceira());
+        conta.setCodContaFinanceira(dto.getCodContaFinanceira());
 
         // ── ITENS (Fase 2: atualiza estoque) ──────────────────────────────
         BigDecimal valorTotal = BigDecimal.ZERO;
@@ -104,6 +115,7 @@ public class ContaPagarService {
                 boolean pagaParcela = parcelaDTO.getPaga() != null
                         ? parcelaDTO.getPaga() : conta.getPaga();
                 parcela.setPaga(pagaParcela);
+                definirDataPagamentoSePaga(parcela);
                 conta.getParcelas().add(parcela);
             }
             // Data de vencimento principal = maior vencimento entre as parcelas
@@ -115,7 +127,9 @@ public class ContaPagarService {
                             .orElse(null));
         }
 
-        return contaPagarRepository.save(conta);
+        ContaPagarEntity salva = contaPagarRepository.save(conta);
+        sincronizarFinanceiro(salva, empresaId);
+        return salva;
     }
 
     /* ------------------------------------------------------------------
@@ -144,6 +158,10 @@ public class ContaPagarService {
         conta.setFornecedor(dto.getFornecedor() != null ? dto.getFornecedor().trim() : null);
         conta.setNumeroNotaFiscal(dto.getNumeroNotaFiscal() != null ? dto.getNumeroNotaFiscal().trim() : null);
         conta.setPaga(dto.getPaga() != null && dto.getPaga());
+        validarClasseConta(empresaId, dto.getCodClasse());
+        conta.setCodClasse(dto.getCodClasse());
+        validarContaSaida(empresaId, dto.getCodContaFinanceira());
+        conta.setCodContaFinanceira(dto.getCodContaFinanceira());
 
         // Reprocesa itens (adiciona novo estoque)
         BigDecimal valorTotal = BigDecimal.ZERO;
@@ -186,6 +204,7 @@ public class ContaPagarService {
                 boolean pagaParcela = parcelaDTO.getPaga() != null
                         ? parcelaDTO.getPaga() : conta.getPaga();
                 parcela.setPaga(pagaParcela);
+                definirDataPagamentoSePaga(parcela);
                 conta.getParcelas().add(parcela);
             }
             conta.setDataVencimento(
@@ -198,7 +217,9 @@ public class ContaPagarService {
             conta.setDataVencimento(null);
         }
 
-        return contaPagarRepository.save(conta);
+        ContaPagarEntity salva = contaPagarRepository.save(conta);
+        sincronizarFinanceiro(salva, empresaId);
+        return salva;
     }
 
     /* ------------------------------------------------------------------
@@ -206,11 +227,18 @@ public class ContaPagarService {
        ------------------------------------------------------------------ */
 
     @Transactional
-    public ContaPagarEntity marcarComoPaga(Long id, Long empresaId) {
+    public ContaPagarEntity marcarComoPaga(Long id, Long empresaId, Long codContaFinanceira) {
         ContaPagarEntity conta = buscarPorId(id, empresaId);
+        validarContaSaida(empresaId, codContaFinanceira);
+        if (codContaFinanceira != null) conta.setCodContaFinanceira(codContaFinanceira);
         conta.setPaga(true);
-        conta.getParcelas().forEach(p -> p.setPaga(true));
-        return contaPagarRepository.save(conta);
+        conta.getParcelas().forEach(p -> {
+            p.setPaga(true);
+            if (p.getDataPagamento() == null) p.setDataPagamento(LocalDate.now());
+        });
+        ContaPagarEntity salva = contaPagarRepository.save(conta);
+        sincronizarFinanceiro(salva, empresaId);
+        return salva;
     }
 
     /* ------------------------------------------------------------------
@@ -221,6 +249,9 @@ public class ContaPagarService {
     public void deletar(Long id, Long empresaId) {
         ContaPagarEntity conta = buscarPorId(id, empresaId);
 
+        // Estorno financeiro: as saídas geradas por esta conta saem do DFC
+        lancamentoService.estornarPorOrigem(OrigemLancamento.CONTA_PAGAR, conta.getCodContaPagar());
+
         // Fase 2: estorno de estoque
         for (ContaPagarItemEntity item : conta.getItens()) {
             ProdutoEntity produto = item.getProduto();
@@ -230,6 +261,62 @@ public class ContaPagarService {
         }
 
         contaPagarRepository.delete(conta);
+    }
+
+    /* ------------------------------------------------------------------
+       INTEGRAÇÃO FINANCEIRA (razão / DFC)
+       ------------------------------------------------------------------ */
+
+    /** Conta a Pagar só pode usar classe ANALÍTICA de CUSTO ou DESPESA. */
+    private void validarClasseConta(Long empresaId, Long codClasse) {
+        if (codClasse == null) return; // classificação é opcional
+        ClasseFinanceiraEntity classe = classeRepo.findByCodClasseAndEmpresaId(codClasse, empresaId)
+                .orElseThrow(() -> new IllegalArgumentException("Classe financeira não encontrada nesta empresa."));
+        if (classe.getNivel() != NivelClasse.ANALITICA)
+            throw new IllegalArgumentException("A conta deve ser vinculada a uma classe ANALÍTICA.");
+        if (classe.getTipo() == TipoClasse.RECEITA)
+            throw new IllegalArgumentException("Conta a Pagar deve usar uma classe de CUSTO ou DESPESA.");
+    }
+
+    private void definirDataPagamentoSePaga(ContaPagarParcelaEntity p) {
+        if (Boolean.TRUE.equals(p.getPaga()) && p.getDataPagamento() == null) {
+            p.setDataPagamento(p.getDataVencimento() != null ? p.getDataVencimento() : LocalDate.now());
+        }
+    }
+
+    /** Conta de saída: opcional no cadastro de título a vencer, mas obrigatória na baixa (validada em sincronizar). */
+    private void validarContaSaida(Long empresaId, Long codContaFinanceira) {
+        if (codContaFinanceira == null) return;
+        var conta = contaFinanceiraRepo.findByCodContaAndEmpresaId(codContaFinanceira, empresaId)
+                .orElseThrow(() -> new IllegalArgumentException("Conta financeira não encontrada nesta empresa."));
+        if (!Boolean.TRUE.equals(conta.getAtivo()))
+            throw new IllegalArgumentException("A conta financeira selecionada está inativa.");
+    }
+
+    /**
+     * Re-sincroniza as saídas do razão para esta conta: estorna as atuais e reposta
+     * uma SAÍDA por parcela PAGA (na data de pagamento, debitando a conta financeira).
+     * Idempotente. Exige a conta de saída quando há parcela paga (regra da baixa).
+     */
+    private void sincronizarFinanceiro(ContaPagarEntity conta, Long empresaId) {
+        lancamentoService.estornarPorOrigem(OrigemLancamento.CONTA_PAGAR, conta.getCodContaPagar());
+
+        boolean temParcelaPaga = conta.getParcelas().stream().anyMatch(p -> Boolean.TRUE.equals(p.getPaga()));
+        if (!temParcelaPaga) return; // nada pago → nada a lançar
+
+        if (conta.getCodContaFinanceira() == null)
+            throw new IllegalArgumentException("Informe a conta financeira de onde o dinheiro saiu para pagar.");
+
+        if (conta.getCodClasse() == null) return; // sem classe não classifica (conta já foi exigida)
+
+        for (ContaPagarParcelaEntity p : conta.getParcelas()) {
+            if (!Boolean.TRUE.equals(p.getPaga())) continue;
+            LocalDate dataPag = p.getDataPagamento() != null ? p.getDataPagamento()
+                    : (p.getDataVencimento() != null ? p.getDataVencimento() : LocalDate.now());
+            lancamentoService.postar(empresaId, conta.getCodClasse(), p.getValorParcela(), dataPag,
+                    "Pagamento: " + conta.getDescricao() + " (parc. " + p.getNumeroParcela() + ")",
+                    OrigemLancamento.CONTA_PAGAR, conta.getCodContaPagar(), conta.getCodContaFinanceira());
+        }
     }
 
     /* ------------------------------------------------------------------

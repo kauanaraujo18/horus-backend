@@ -62,6 +62,10 @@ public class ProdutoEntity implements Serializable {
     @Column(name = "referencia", length = 30)
     private ReferenciaMedida referencia;
 
+    /** Classe financeira ANALÍTICA (RECEITA) padrão, usada para classificar a venda no PDV. */
+    @Column(name = "cod_classe_padrao")
+    private Long codClassePadrao;
+
     @OneToMany(mappedBy = "produtoFinal", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<ProdutoMateriaPrimaEntity> composicao = new ArrayList<>();

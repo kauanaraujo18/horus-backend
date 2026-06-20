@@ -1158,3 +1158,158 @@ button {
     from { opacity: 1; transform: translateX(0); }
     to   { opacity: 0; transform: translateX(16px); }
 }
+
+/* ==========================================================================
+   22. GESTOR FINANCEIRO (Plano de Contas + DFC)
+   ========================================================================== */
+.plano-legend {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 4px 14px; flex-wrap: wrap;
+}
+.badge-tipo {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 3px 10px; border-radius: 20px;
+}
+.badge-tipo.receita { background: rgba(16,185,129,0.12);  color: #059669; }
+.badge-tipo.custo   { background: rgba(245,158,11,0.12);  color: #b45309; }
+.badge-tipo.despesa { background: rgba(239,68,68,0.10);   color: #dc2626; }
+
+.plano-arvore {
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-md);
+    overflow: hidden auto; max-height: 56vh;
+    background: var(--bg-solid);
+}
+.plano-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #f1f4f9;
+    transition: background var(--transition-fast);
+}
+.plano-row:last-child { border-bottom: none; }
+.plano-row:hover { background: #f8f9ff; }
+.plano-row.inativa { opacity: 0.5; }
+.plano-row.sintetica .plano-nome { font-weight: 700; color: var(--text-main); }
+.plano-row.analitica .plano-nome { font-weight: 500; color: var(--text-secondary); }
+.plano-cod {
+    font-size: 11px; font-family: monospace; color: var(--text-muted);
+    min-width: 52px; flex-shrink: 0;
+}
+.plano-nome { flex: 1; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.plano-nivel-tag {
+    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 2px 7px; border-radius: 20px;
+    background: var(--bg-hover); color: var(--text-muted); border: 1px solid var(--border-subtle);
+}
+.plano-row.sintetica .plano-nivel-tag { background: var(--primary-light); color: var(--primary-hover); border-color: var(--primary-border); }
+.plano-acoes { display: flex; gap: 4px; flex-shrink: 0; }
+.plano-acoes .btn-mini {
+    background: transparent; border: 1px solid transparent; color: var(--text-muted);
+    width: 28px; height: 28px; border-radius: 7px; font-size: 15px;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.plano-acoes .btn-mini:hover { background: var(--bg-hover); color: var(--text-main); }
+.plano-acoes .btn-mini.add:hover    { background: var(--primary-light); color: var(--primary); }
+.plano-acoes .btn-mini.danger:hover { background: rgba(239,68,68,0.10); color: var(--danger); }
+
+/* ── DFC ─────────────────────────────────────────────────────────────── */
+.dfc-toolbar {
+    display: flex; align-items: flex-end; gap: 14px;
+    padding: 4px 4px 16px; flex-wrap: wrap;
+}
+.dfc-conteudo { max-height: 60vh; }
+.dfc-section { margin-bottom: 18px; }
+.dfc-section-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 14px; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.dfc-section-header.receita { background: rgba(16,185,129,0.10);  color: #059669; }
+.dfc-section-header.custo   { background: rgba(245,158,11,0.10);  color: #b45309; }
+.dfc-section-header.despesa { background: rgba(239,68,68,0.08);   color: #dc2626; }
+.dfc-tabela { border: 1px solid var(--border-card); border-top: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm); overflow: hidden; }
+.dfc-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 14px; border-bottom: 1px solid #f1f4f9; font-size: 13px;
+}
+.dfc-row:last-child { border-bottom: none; }
+.dfc-row:hover { background: #f8f9ff; }
+.dfc-row.sintetica { font-weight: 700; color: var(--text-main); background: #fafbfd; }
+.dfc-row.analitica { color: var(--text-secondary); }
+.dfc-nome { display: flex; align-items: center; gap: 8px; }
+.dfc-nome .dfc-cod { font-family: monospace; font-size: 11px; color: var(--text-muted); }
+.dfc-valor { font-variant-numeric: tabular-nums; font-weight: 600; }
+.dfc-resultado {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 8px; padding: 16px 18px;
+    background: #0d1117; color: #fff; border-radius: var(--radius-md);
+    background-image: radial-gradient(ellipse 60% 120% at 100% 0%, rgba(99,102,241,0.30) 0%, transparent 70%);
+}
+.dfc-resultado .lbl { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.dfc-resultado .val { font-size: 22px; font-weight: 800; }
+.dfc-resultado .val.positivo { color: #34d399; }
+.dfc-resultado .val.negativo { color: #f87171; }
+
+/* ── Modal de Classe ─────────────────────────────────────────────────── */
+.fin-modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15,23,42,0.45);
+    backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 9vh 20px; z-index: 100000;
+}
+.fin-modal-backdrop.open { display: flex; animation: fadeIn 0.18s ease; }
+.fin-modal {
+    width: 100%; max-width: 520px;
+    background: var(--bg-solid); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-modal);
+    animation: slideUpFade 0.3s cubic-bezier(0.16,1,0.3,1);
+}
+.fin-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 22px; border-bottom: 1px solid var(--border-subtle);
+}
+.fin-modal-header h3 { font-size: 16px; font-weight: 700; }
+.modal-close-x { background: transparent; color: var(--text-muted); font-size: 20px; padding: 4px; border-radius: 8px; }
+.modal-close-x:hover { background: var(--bg-hover); color: var(--text-main); }
+.fin-modal-body { padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; }
+.fin-modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px; border-top: 1px solid var(--border-subtle); }
+.form-grid-2-fin { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+/* ── DFC v2: grade com colunas dinâmicas + toggle + rodapé ───────────── */
+.dfc-modo { display: flex; gap: 6px; margin-bottom: 14px; }
+.dfc-modo-btn {
+    background: var(--bg-hover); border: 1.5px solid #e2e8f0; color: var(--text-secondary);
+    font-size: 12px; font-weight: 600; padding: 7px 14px; border-radius: var(--radius-sm);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all var(--transition-fast);
+}
+.dfc-modo-btn.ativo { background: var(--gradient-brand); color: #fff; border-color: transparent; box-shadow: 0 4px 12px rgba(99,102,241,0.25); }
+
+.dfc-grid { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.dfc-grid th {
+    background: #fafbfd; color: var(--text-muted); font-weight: 700;
+    text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em;
+    padding: 9px 12px; border-bottom: 1.5px solid #e8eaf0; text-align: right; white-space: nowrap;
+}
+.dfc-grid th.dfc-col-nome { text-align: left; }
+.dfc-grid td { padding: 8px 12px; border-bottom: 1px solid #f1f4f9; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dfc-grid td.dfc-col-nome { text-align: left; white-space: normal; }
+.dfc-grid tr.sintetica { font-weight: 700; color: var(--text-main); background: #fafbfd; }
+.dfc-grid tr.analitica td { color: var(--text-secondary); }
+.dfc-grid tr:hover td { background: #f8f9ff; }
+.dfc-grid .dfc-cod { font-family: monospace; font-size: 10px; color: var(--text-muted); margin-right: 7px; }
+
+.dfc-secao-row td { font-weight: 800; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+.dfc-secao-row.receita td { background: rgba(16,185,129,0.10); color: #059669; }
+.dfc-secao-row.custo   td { background: rgba(245,158,11,0.10); color: #b45309; }
+.dfc-secao-row.despesa td { background: rgba(239,68,68,0.08);  color: #dc2626; }
+
+.dfc-fech-titulo { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 20px 0 8px; }
+.dfc-fechamento { border: 1px solid var(--border-card); border-radius: var(--radius-sm); overflow: hidden; }
+.dfc-foot-row td { font-weight: 600; }
+.dfc-foot-row .dfc-col-nome { font-weight: 600; color: var(--text-secondary); }
+.dfc-foot-row.final td {
+    background: #0d1117; color: #fff; font-weight: 800; font-size: 13px;
+    background-image: radial-gradient(ellipse 50% 120% at 100% 0%, rgba(99,102,241,0.30) 0%, transparent 70%);
+}

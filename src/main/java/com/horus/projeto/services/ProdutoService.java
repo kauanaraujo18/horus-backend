@@ -26,6 +26,7 @@ public class ProdutoService {
     private final ProdutoRepository repository;
     private final EmpresaRepository empresaRepository;
     private final ProdutoMateriaPrimaRepository materiaPrimaRepository;
+    private final com.horus.projeto.repositories.ClasseFinanceiraRepository classeFinanceiraRepository;
 
     public List<ProdutoEntity> listarPorEmpresa(Long empresaId) {
         return repository.findByEmpresaId(empresaId);
@@ -47,10 +48,24 @@ public class ProdutoService {
             throw new IllegalArgumentException("Erro: Já existe um Produto cadastrado com este Código na sua loja.");
         }
 
+        validarClasseProduto(empresaId, produto.getCodClassePadrao());
+
         EmpresaEntity empresa = empresaRepository.getReferenceById(empresaId);
         produto.setEmpresa(empresa);
 
         return repository.save(produto);
+    }
+
+    /** Produto só pode usar classe financeira ANALÍTICA de RECEITA. */
+    private void validarClasseProduto(Long empresaId, Long codClassePadrao) {
+        if (codClassePadrao == null) return;
+        com.horus.projeto.entities.ClasseFinanceiraEntity classe =
+                classeFinanceiraRepository.findByCodClasseAndEmpresaId(codClassePadrao, empresaId)
+                .orElseThrow(() -> new IllegalArgumentException("Classe financeira não encontrada nesta empresa."));
+        if (classe.getNivel() != com.horus.projeto.enums.NivelClasse.ANALITICA)
+            throw new IllegalArgumentException("O produto deve usar uma classe ANALÍTICA.");
+        if (classe.getTipo() != com.horus.projeto.enums.TipoClasse.RECEITA)
+            throw new IllegalArgumentException("O produto deve usar uma classe de RECEITA.");
     }
 
     @Transactional
@@ -84,6 +99,10 @@ public class ProdutoService {
         if (produtoAtualizada.getReferencia() != null) {
             produtoExistente.setReferencia(produtoAtualizada.getReferencia());
         }
+
+        // Classe financeira padrão: setada sempre (permite limpar), validada quando presente
+        validarClasseProduto(empresaId, produtoAtualizada.getCodClassePadrao());
+        produtoExistente.setCodClassePadrao(produtoAtualizada.getCodClassePadrao());
 
         return repository.save(produtoExistente);
     }

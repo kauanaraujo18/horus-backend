@@ -39,4 +39,8 @@ public class ContaPagarParcelaEntity {
 
     @Column(nullable = false)
     private Boolean paga = false;
+
+    /** Data real do pagamento — regime de caixa data a saída pelo dia em que pagou. */
+    @Column(name = "data_pagamento")
+    private LocalDate dataPagamento;
 }

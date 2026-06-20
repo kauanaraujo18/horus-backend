@@ -30,6 +30,7 @@ public class AdminService {
     private final ProdutoRepository produtoRepository;
     private final VendaRepository vendaRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PlanoContasSeeder planoContasSeeder;
 
     /* ── Dashboard ──────────────────────────────────────────────────────── */
 
@@ -74,6 +75,7 @@ public class AdminService {
         dados.setAtivo(true);
         EmpresaEntity salva = empresaRepository.save(dados);
         criarUsuarioInicialDaEmpresa(salva);
+        planoContasSeeder.semearSeVazio(salva.getId()); // já nasce com o plano de contas padrão
         return salva;
     }
 

@@ -79,6 +79,12 @@
                     <span>Contas</span>
                 </button>
             </li>
+            <li>
+                <button id="financeiroBtn" class="sidebar-btn" title="Gestor Financeiro">
+                    <i class="ph ph-chart-pie-slice"></i>
+                    <span>Financeiro</span>
+                </button>
+            </li>
         </ul>
         <div class="sidebar-footer">
             <button class="sidebar-btn btn-logout" title="Sair do Sistema">
@@ -204,6 +210,13 @@
                                 <label for="produtoReferencia">Referência</label>
                                 <select id="produtoReferencia" disabled>
                                     <option value="">-- Selecione a unidade primeiro --</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group col-span-3">
+                                <label for="produtoCodClasse"><i class="ph ph-chart-pie-slice" style="margin-right:5px;"></i> Classe Financeira (Receita) — usada no fluxo de caixa</label>
+                                <select id="produtoCodClasse">
+                                    <option value="">-- Sem classificação --</option>
                                 </select>
                             </div>
                         </div>
@@ -798,6 +811,18 @@
                                 <label for="cpNotaFiscal">Nº da Nota Fiscal</label>
                                 <input type="text" id="cpNotaFiscal" placeholder="Ex: NF-001234">
                             </div>
+                            <div class="input-group col-span-3">
+                                <label for="cpCodClasse"><i class="ph ph-chart-pie-slice" style="margin-right:5px;"></i> Classe Financeira (Custo/Despesa) — usada no fluxo de caixa</label>
+                                <select id="cpCodClasse">
+                                    <option value="">-- Sem classificação --</option>
+                                </select>
+                            </div>
+                            <div class="input-group col-span-3">
+                                <label for="cpCodContaFin"><i class="ph ph-wallet" style="margin-right:5px;"></i> Conta de saída — obrigatória se a conta já estiver paga</label>
+                                <select id="cpCodContaFin">
+                                    <option value="">-- Informar na baixa --</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="wizard-nav">
                             <span></span>
@@ -929,6 +954,99 @@
             </div><!-- /window-body -->
         </div><!-- /contasPagarDiv -->
 
+        <!-- ═══════════════════════════════════════════════════════════
+             JANELA: GESTOR FINANCEIRO
+             ═══════════════════════════════════════════════════════════ -->
+        <div id="financeiroDiv" class="draggable window window-xl" style="display:none;">
+            <header class="headerjanela window-header">
+                <div class="window-controls"><button class="close-btn"><i class="ph ph-x"></i></button></div>
+                <div class="window-title-area">
+                    <i class="ph ph-chart-pie-slice window-icon"></i>
+                    <button id="btnVoltarFinanceiro" class="btn-icon btn-back" style="display:none;"><i class="ph ph-caret-left"></i></button>
+                    <h2 id="tituloJanelaFinanceiro" class="window-title">Gestor Financeiro</h2>
+                </div>
+            </header>
+            <div class="window-body">
+
+                <!-- ── MENU ─────────────────────────────────────────── -->
+                <div id="finViewMenu" class="view-section">
+                    <div class="menu-grid">
+                        <button class="menu-card" id="btnContasFin">
+                            <i class="ph ph-wallet"></i><span>Contas Financeiras</span>
+                        </button>
+                        <button class="menu-card" id="btnPlanoContas">
+                            <i class="ph ph-tree-structure"></i><span>Plano de Contas</span>
+                        </button>
+                        <button class="menu-card" id="btnDfc">
+                            <i class="ph ph-chart-line-up"></i><span>Fluxo de Caixa (DFC)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── CONTAS FINANCEIRAS ───────────────────────────── -->
+                <div id="finViewContas" class="view-section" style="display:none;">
+                    <div class="toolbar">
+                        <h3 style="font-size:14px;font-weight:600;color:var(--text-main);flex:1;">Contas Financeiras</h3>
+                        <button class="btn-primary" style="width:auto;padding:10px 16px;" onclick="finAbrirModalConta()">
+                            <i class="ph ph-plus"></i> Nova Conta
+                        </button>
+                    </div>
+                    <div class="table-container" style="max-height:56vh;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Conta</th>
+                                    <th class="align-center">Tipo</th>
+                                    <th class="align-right">Saldo Inicial</th>
+                                    <th class="align-center">Padrão</th>
+                                    <th class="align-center">Status</th>
+                                    <th class="align-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="finContasCorpo">
+                                <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">
+                                    <i class="ph ph-spinner ph-spin"></i> Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ── PLANO DE CONTAS ──────────────────────────────── -->
+                <div id="finViewPlano" class="view-section" style="display:none;">
+                    <div class="toolbar">
+                        <h3 style="font-size:14px;font-weight:600;color:var(--text-main);flex:1;">Plano de Contas</h3>
+                        <button class="btn-primary" style="width:auto;padding:10px 16px;" onclick="finAbrirModalClasse()">
+                            <i class="ph ph-plus"></i> Nova Classe
+                        </button>
+                    </div>
+                    <div class="plano-legend">
+                        <span class="badge-tipo receita">Receita</span>
+                        <span class="badge-tipo custo">Custo</span>
+                        <span class="badge-tipo despesa">Despesa</span>
+                        <span style="margin-left:auto;color:var(--text-muted);font-size:11px;">Sintética agrupa · Analítica recebe lançamentos</span>
+                    </div>
+                    <div id="planoContasArvore" class="plano-arvore scrollable-box">
+                        <div style="padding:24px;text-align:center;color:var(--text-muted);"><i class="ph ph-spinner ph-spin"></i> Carregando...</div>
+                    </div>
+                </div>
+
+                <!-- ── DFC ──────────────────────────────────────────── -->
+                <div id="finViewDfc" class="view-section" style="display:none;">
+                    <div class="dfc-toolbar">
+                        <div class="input-group-inline"><label>De</label><input type="date" id="dfcInicio"></div>
+                        <div class="input-group-inline"><label>Até</label><input type="date" id="dfcFim"></div>
+                        <button class="btn-primary" style="width:auto;padding:9px 18px;" onclick="finGerarDfc()">
+                            <i class="ph ph-arrows-clockwise"></i> Gerar
+                        </button>
+                    </div>
+                    <div id="dfcConteudo" class="dfc-conteudo scrollable-box">
+                        <div style="padding:32px;text-align:center;color:var(--text-muted);">Selecione o período e clique em Gerar.</div>
+                    </div>
+                </div>
+
+            </div><!-- /window-body -->
+        </div><!-- /financeiroDiv -->
+
     </main>
 
     <div id="modalPesquisa" class="spotlight-modal" style="display: none;">
@@ -946,6 +1064,115 @@
     </div>
 
     <!-- Toast container global -->
+    <!-- MODAL: Nova/Editar Classe Financeira -->
+    <div id="modalClasse" class="fin-modal-backdrop">
+        <div class="fin-modal">
+            <div class="fin-modal-header">
+                <h3 id="tituloModalClasse">Nova Classe Financeira</h3>
+                <button class="modal-close-x" onclick="finFecharModalClasse()"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="fin-modal-body">
+                <input type="hidden" id="classeId">
+                <div class="input-group">
+                    <label for="classeNome">Nome *</label>
+                    <input type="text" id="classeNome" placeholder="Ex: Vendas de Vestuário">
+                </div>
+                <div class="form-grid-2-fin">
+                    <div class="input-group">
+                        <label for="classeTipo">Tipo *</label>
+                        <select id="classeTipo">
+                            <option value="RECEITA">Receita</option>
+                            <option value="CUSTO">Custo</option>
+                            <option value="DESPESA">Despesa</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="classeNivel">Nível *</label>
+                        <select id="classeNivel" onchange="finOnNivelChange()">
+                            <option value="ANALITICA">Analítica (recebe lançamento)</option>
+                            <option value="SINTETICA">Sintética (agrupa)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="classePai">Classe Pai (sintética)</label>
+                    <select id="classePai"><option value="">-- Raiz (sem pai) --</option></select>
+                    <span id="classePaiHint" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></span>
+                </div>
+                <div class="input-group">
+                    <label for="classeCodigo">Código (opcional)</label>
+                    <input type="text" id="classeCodigo" placeholder="Gerado automaticamente se vazio">
+                </div>
+            </div>
+            <div class="fin-modal-footer">
+                <button class="btn-secondary" onclick="finFecharModalClasse()">Cancelar</button>
+                <button class="btn-primary" style="width:auto;padding:10px 20px;" onclick="finSalvarClasse()">
+                    <i class="ph ph-floppy-disk"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Nova/Editar Conta Financeira -->
+    <div id="modalConta" class="fin-modal-backdrop">
+        <div class="fin-modal">
+            <div class="fin-modal-header">
+                <h3 id="tituloModalConta">Nova Conta Financeira</h3>
+                <button class="modal-close-x" onclick="finFecharModalConta()"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="fin-modal-body">
+                <input type="hidden" id="contaId">
+                <div class="input-group">
+                    <label for="contaNome">Nome / Descrição *</label>
+                    <input type="text" id="contaNome" placeholder="Ex: Caixa da Loja, Banco Inter">
+                </div>
+                <div class="form-grid-2-fin">
+                    <div class="input-group">
+                        <label for="contaTipo">Tipo *</label>
+                        <select id="contaTipo">
+                            <option value="CAIXA">Caixa físico</option>
+                            <option value="BANCO">Conta bancária</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="contaSaldoInicial">Saldo Inicial</label>
+                        <input type="text" id="contaSaldoInicial" placeholder="R$ 0,00" oninput="mascaraMoeda(this)">
+                    </div>
+                </div>
+            </div>
+            <div class="fin-modal-footer">
+                <button class="btn-secondary" onclick="finFecharModalConta()">Cancelar</button>
+                <button class="btn-primary" style="width:auto;padding:10px 20px;" onclick="finSalvarConta()">
+                    <i class="ph ph-floppy-disk"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Baixa (pagamento) de Conta a Pagar -->
+    <div id="modalBaixa" class="fin-modal-backdrop">
+        <div class="fin-modal">
+            <div class="fin-modal-header">
+                <h3>Confirmar Pagamento</h3>
+                <button class="modal-close-x" onclick="finFecharModalBaixa()"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="fin-modal-body">
+                <input type="hidden" id="baixaContaPagarId">
+                <p style="font-size:13px;color:var(--text-secondary);">Isto quita todas as parcelas. Informe de qual conta o dinheiro sai:</p>
+                <div class="input-group">
+                    <label for="baixaConta">Conta de saída *</label>
+                    <select id="baixaConta"></select>
+                </div>
+            </div>
+            <div class="fin-modal-footer">
+                <button class="btn-secondary" onclick="finFecharModalBaixa()">Cancelar</button>
+                <button class="btn-primary" style="width:auto;padding:10px 20px;" onclick="finConfirmarBaixa()">
+                    <i class="ph ph-check-circle"></i> Pagar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="toastContainer"></div>
 
     <script src = "./js/app.js"></script>

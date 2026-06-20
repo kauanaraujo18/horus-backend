@@ -80,10 +80,15 @@ public class ContaPagarController {
 
     /* ──────────────────── MARCAR COMO PAGA ──────────────────── */
 
+    public record PagarRequest(Long codContaFinanceira) {}
+
     @PatchMapping("/{id}/pagar")
-    public ResponseEntity<?> marcarComoPaga(@PathVariable Long id) {
+    public ResponseEntity<?> marcarComoPaga(@PathVariable Long id, @RequestBody(required = false) PagarRequest req) {
         try {
-            return ResponseEntity.ok(service.marcarComoPaga(id, getEmpresaIdLogada()));
+            Long codConta = req != null ? req.codContaFinanceira() : null;
+            return ResponseEntity.ok(service.marcarComoPaga(id, getEmpresaIdLogada(), codConta));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("erro", e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.status(403).body(Map.of("erro", e.getMessage()));
         }

@@ -9,8 +9,7 @@
 /* ==========================================================================
    CONFIGURAÇÕES GLOBAIS
    ========================================================================== */
-const API_URL = "https://horus-api-cjb4.onrender.com";
-//const API_URL = "http://localhost:8080";
+const API_URL = window.location.origin.startsWith('http') ? window.location.origin : 'http://localhost:8080';
 let zIndexCounter = 100; // Controle de profundidade das janelas
 let cascadeOffset = 0;   // Controle de posição em cascata
 
@@ -40,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFormatters();
     setupContasPagarModule();
     setupProducaoModule();
+    setupFinanceiroModule();
 });
 
 /* ==========================================================================
@@ -135,7 +135,8 @@ function setupWindowManagement() {
         'produtosBtn': 'produtosDiv',
         'caixaBtn': 'caixaDiv',
         'relatoriosBtn': 'relatoriosDiv',
-        'contasPagarBtn': 'contasPagarDiv'
+        'contasPagarBtn': 'contasPagarDiv',
+        'financeiroBtn': 'financeiroDiv'
     };
 
     for (const [btnId, winId] of Object.entries(navMap)) {
@@ -168,6 +169,7 @@ function abrirJanela(winId) {
     if (winId === 'produtosDiv') navegarProdutos('menu');
     if (winId === 'relatoriosDiv') navegarRelatorios('menu');
     if (winId === 'contasPagarDiv') cpNavegar('menu');
+    if (winId === 'financeiroDiv')  finNavegar('menu');
 
     win.style.display = 'flex';
     
@@ -456,6 +458,7 @@ function setupProdutosModule() {
         document.getElementById('produtoReferencia').innerHTML = '<option value="">-- Selecione a unidade primeiro --</option>';
         document.getElementById('produtoReferencia').disabled = true;
         document.getElementById('secaoMateriasPrimas').style.display = 'none';
+        carregarClassesNosSeletores().then(() => { document.getElementById('produtoCodClasse').value = ''; });
         navegarProdutos('cadastro');
     });
     
@@ -829,7 +832,9 @@ async function handleSalvarProduto(e) {
         quantidadeEstoque: qtdEstoque,
         tipo: tipo,
         unidadeMedida: unidadeMedida,
-        referencia: referencia
+        referencia: referencia,
+        codClassePadrao: document.getElementById('produtoCodClasse').value
+            ? Number(document.getElementById('produtoCodClasse').value) : null
     };
 
     btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Salvando...';
@@ -904,6 +909,9 @@ async function prepararEdicaoProduto(id) {
         document.getElementById('produtoId').value = produto.id || produto.codProduto;
         document.getElementById('produtoCodigo').value = produto.codigo || '';
         document.getElementById('produtoNome').value = produto.nome || '';
+
+        await carregarClassesNosSeletores();
+        document.getElementById('produtoCodClasse').value = produto.codClassePadrao || '';
         document.getElementById('produtoQuantidade').value = produto.quantidadeEstoque || 0;
         document.getElementById('produtoTipo').value = produto.tipo || 'R';
         handleTipoProdutoChange(); // atualiza campo valor obrigatório + seção MPs
@@ -1770,19 +1778,26 @@ async function abrirDashboardNoturno() {
     const aba = abrirAbaCarregando();
 
     try {
-        const [resVendas, resContas, resAnalise] = await Promise.all([
+        // Janela de 6 meses para a linha de evolução de saldo
+        const hojeD = new Date();
+        const ini6m = new Date(hojeD.getFullYear(), hojeD.getMonth() - 5, 1).toISOString().split('T')[0];
+        const fimHoje = hojeD.toISOString().split('T')[0];
+
+        const [resVendas, resContas, resAnalise, resSaldo] = await Promise.all([
             fetch(`${API_URL}/api/vendas`,                  { headers: getAuthHeader() }),
             fetch(`${API_URL}/api/contas-pagar`,            { headers: getAuthHeader() }),
-            fetch(`${API_URL}/api/produtos/analise-lucro`,  { headers: getAuthHeader() })
+            fetch(`${API_URL}/api/produtos/analise-lucro`,  { headers: getAuthHeader() }),
+            fetch(`${API_URL}/api/financeiro/dfc/saldo-evolucao?inicio=${ini6m}&fim=${fimHoje}`, { headers: getAuthHeader() })
         ]);
         if (!resVendas.ok || !resContas.ok || !resAnalise.ok) throw new Error('Erro ao buscar dados do dashboard.');
 
         const vendas  = await resVendas.json();
         const contas  = await resContas.json();
         const analise = await resAnalise.json();
+        const saldoSerie = resSaldo.ok ? await resSaldo.json() : [];
 
         const empresaNome = localStorage.getItem('horus_empresa_nome') || 'Horus';
-        const html = gerarHtmlDashboardNoturno(vendas, contas, analise, empresaNome);
+        const html = gerarHtmlDashboardNoturno(vendas, contas, analise, empresaNome, saldoSerie);
         renderizarNaAba(aba, html);
 
     } catch (e) {
@@ -1794,7 +1809,7 @@ async function abrirDashboardNoturno() {
     }
 }
 
-function gerarHtmlDashboardNoturno(vendas, contas, analise, empresaNome) {
+function gerarHtmlDashboardNoturno(vendas, contas, analise, empresaNome, saldoSerie = []) {
     return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -1886,6 +1901,8 @@ function gerarHtmlDashboardNoturno(vendas, contas, analise, empresaNome) {
     <div class="kpi" style="--bar:#10b981"><div class="lbl">Contas Pagas</div><div class="val" id="kCpPago">—</div></div>
   </div>
 
+  <div class="card" style="margin-bottom:18px;"><h3>Evolução do saldo da empresa (6 meses)</h3><div class="ch"><canvas id="chSaldo"></canvas></div></div>
+
   <div class="grid2">
     <div class="card"><h3>Receita por dia</h3><div class="ch"><canvas id="chReceita"></canvas></div></div>
     <div class="card"><h3>Top produtos vendidos</h3><div class="ch"><canvas id="chProdutos"></canvas></div></div>
@@ -1908,9 +1925,10 @@ function gerarHtmlDashboardNoturno(vendas, contas, analise, empresaNome) {
 const VENDAS  = ${JSON.stringify(vendas)};
 const CONTAS  = ${JSON.stringify(contas)};
 const ANALISE = ${JSON.stringify(analise)};
+const SALDO   = ${JSON.stringify(saldoSerie)};
 
 const moeda = v => (v ?? 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
-let chR = null, chP = null;
+let chR = null, chP = null, chS = null;
 
 function onPeriodoChange() {
   const custom = document.getElementById('filtroPeriodo').value === 'CUSTOM';
@@ -2030,8 +2048,26 @@ function renderRanking() {
   }).join('');
 }
 
+function renderSaldo() {
+  if (!SALDO || SALDO.length === 0) return;
+  const ctx = document.getElementById('chSaldo').getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 260);
+  grad.addColorStop(0, 'rgba(16,185,129,0.40)'); grad.addColorStop(1, 'rgba(16,185,129,0.02)');
+  const labels = SALDO.map(p => new Date(p.data + 'T00:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }));
+  if (chS) chS.destroy();
+  chS = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[{ data: SALDO.map(p => p.saldo), backgroundColor:grad, borderColor:'#34d399',
+           borderWidth:2, pointBackgroundColor:'#0f172a', pointBorderColor:'#34d399', pointRadius:2.5, fill:true, tension:0.3 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } },
+      scales:{ x:{ ticks:{ color:'#64748b', maxTicksLimit:12 }, grid:{ color:'#243044' } },
+               y:{ ticks:{ color:'#64748b', callback:v => 'R$ ' + v }, grid:{ color:'#243044' } } } }
+  });
+}
+
 render();
 renderRanking();
+renderSaldo();
 <\/script>
 </body>
 </html>`;
@@ -2610,7 +2646,9 @@ async function cpSalvarConta() {
         valorUnitario: Number(item.valorUnitario.toFixed(2))
     }));
 
-    const payload = { descricao, fornecedor: fornecedor || null, numeroNotaFiscal: nf || null, paga: jaPaga, itens, parcelas };
+    const codClasse = document.getElementById('cpCodClasse').value ? Number(document.getElementById('cpCodClasse').value) : null;
+    const codContaFinanceira = document.getElementById('cpCodContaFin').value ? Number(document.getElementById('cpCodContaFin').value) : null;
+    const payload = { descricao, fornecedor: fornecedor || null, numeroNotaFiscal: nf || null, paga: jaPaga, codClasse, codContaFinanceira, itens, parcelas };
     const btn = document.getElementById('btnCpSalvar');
     const txtOrig = btn.innerHTML;
     btn.disabled = true;
@@ -2641,13 +2679,9 @@ async function cpSalvarConta() {
 }
 
 /* ── Pagar / Editar / Deletar ───────────────────────────────────────── */
-async function cpMarcarComoPaga(id) {
-    if (!confirm('Marcar esta conta como PAGA? Isso irá quitar todas as parcelas.')) return;
-    try {
-        const res = await fetch(`${API_URL}/api/contas-pagar/${id}/pagar`, { method: 'PATCH', headers: getAuthHeader() });
-        if (res.ok) { mostrarToast('Conta quitada com sucesso!', 'success'); cpCarregarContas(); }
-        else mostrarToast('Erro ao quitar conta.', 'error');
-    } catch(e) { mostrarToast('Erro de conexão.', 'error'); }
+function cpMarcarComoPaga(id) {
+    // Abre o modal de baixa para o usuário escolher a conta de saída (obrigatória).
+    finAbrirModalBaixa(id);
 }
 
 async function cpEditarConta(id) {
@@ -2662,6 +2696,10 @@ async function cpEditarConta(id) {
         document.getElementById('cpDescricao').value  = conta.descricao || '';
         document.getElementById('cpFornecedor').value = conta.fornecedor || '';
         document.getElementById('cpNotaFiscal').value = conta.numeroNotaFiscal || '';
+        await carregarClassesNosSeletores();
+        await carregarContasFin();
+        document.getElementById('cpCodClasse').value  = conta.codClasse || '';
+        document.getElementById('cpCodContaFin').value = conta.codContaFinanceira || '';
 
         cpItensAdicionados = (conta.itens || []).map(item => ({
             codProduto: item.produto?.codProduto,
@@ -2718,6 +2756,8 @@ function cpResetarFormulario() {
         if (el) el.value = '';
     });
     document.getElementById('cpJaPaga').checked = false;
+    carregarClassesNosSeletores().then(() => { document.getElementById('cpCodClasse').value = ''; });
+    carregarContasFin().then(() => { document.getElementById('cpCodContaFin').value = ''; });
     document.getElementById('cpNumeroParcelas').value = '1';
     document.getElementById('cpValorTotalParcelas').value = '';
     document.getElementById('cpPrimeiroVencimento').value = '';
@@ -3093,4 +3133,495 @@ function prodResetarFormulario() {
     el('prodNomeProduto').innerText            = '';
     el('prodTipoProduto').innerHTML            = '';
     el('prodEstoqueProduto').innerText         = '';
+}
+
+/* ==========================================================================
+   MÓDULO 10: GESTOR FINANCEIRO (Plano de Contas + DFC)
+   ========================================================================== */
+let finClassesCache = [];
+
+function finEsc(s) {
+    return String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+}
+function finMoeda(v) {
+    return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function setupFinanceiroModule() {
+    document.getElementById('btnVoltarFinanceiro')?.addEventListener('click', () => finNavegar('menu'));
+    document.getElementById('btnContasFin')?.addEventListener('click', () => finNavegar('contas'));
+    document.getElementById('btnPlanoContas')?.addEventListener('click', () => finNavegar('plano'));
+    document.getElementById('btnDfc')?.addEventListener('click', () => finNavegar('dfc'));
+    document.getElementById('classeTipo')?.addEventListener('change', () => finPopularSelectPai());
+}
+
+function finNavegar(tela) {
+    ['finViewMenu', 'finViewContas', 'finViewPlano', 'finViewDfc'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.style.display = 'none';
+    });
+    const titulo = document.getElementById('tituloJanelaFinanceiro');
+    const btnVoltar = document.getElementById('btnVoltarFinanceiro');
+    if (tela === 'contas') {
+        document.getElementById('finViewContas').style.display = 'block';
+        titulo.innerText = 'Financeiro › Contas Financeiras';
+        btnVoltar.style.display = 'flex';
+        finCarregarContas();
+    } else if (tela === 'plano') {
+        document.getElementById('finViewPlano').style.display = 'block';
+        titulo.innerText = 'Financeiro › Plano de Contas';
+        btnVoltar.style.display = 'flex';
+        finCarregarPlano();
+    } else if (tela === 'dfc') {
+        document.getElementById('finViewDfc').style.display = 'block';
+        titulo.innerText = 'Financeiro › Fluxo de Caixa';
+        btnVoltar.style.display = 'flex';
+    } else {
+        document.getElementById('finViewMenu').style.display = 'block';
+        titulo.innerText = 'Gestor Financeiro';
+        btnVoltar.style.display = 'none';
+    }
+}
+
+/* Seletores de classe nos formulários de Produto / Conta a Pagar */
+async function carregarClassesNosSeletores() {
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/classes/analiticas`, { headers: getAuthHeader() });
+        if (!res.ok) return;
+        const classes = await res.json();
+        const opt = c => `<option value="${c.codClasse}">${c.codigo ? c.codigo + ' · ' : ''}${finEsc(c.nome)}</option>`;
+        const selProd = document.getElementById('produtoCodClasse');
+        if (selProd) {
+            const atual = selProd.value;
+            selProd.innerHTML = '<option value="">-- Sem classificação --</option>' +
+                classes.filter(c => c.tipo === 'RECEITA').map(opt).join('');
+            selProd.value = atual;
+        }
+        const selConta = document.getElementById('cpCodClasse');
+        if (selConta) {
+            const atual = selConta.value;
+            selConta.innerHTML = '<option value="">-- Sem classificação --</option>' +
+                classes.filter(c => c.tipo === 'CUSTO' || c.tipo === 'DESPESA').map(opt).join('');
+            selConta.value = atual;
+        }
+    } catch (e) { /* silencioso */ }
+}
+
+/* Plano de Contas (CRUD) */
+async function finCarregarPlano() {
+    const cont = document.getElementById('planoContasArvore');
+    cont.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);"><i class="ph ph-spinner ph-spin"></i> Carregando...</div>';
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/classes`, { headers: getAuthHeader() });
+        if (!res.ok) throw new Error();
+        finClassesCache = await res.json();
+        finRenderArvore(finClassesCache);
+    } catch (e) {
+        cont.innerHTML = '<div style="padding:24px;color:var(--danger);text-align:center;">Erro ao carregar o plano de contas.</div>';
+    }
+}
+
+function finRenderArvore(classes) {
+    const cont = document.getElementById('planoContasArvore');
+    if (!classes || classes.length === 0) {
+        cont.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);">Nenhuma classe cadastrada. Clique em "Nova Classe".</div>';
+        return;
+    }
+    const filhosPorPai = {};
+    classes.forEach(c => { const k = c.codClassePai || 0; (filhosPorPai[k] = filhosPorPai[k] || []).push(c); });
+    let html = '';
+    const render = (c, depth) => {
+        const isSint = c.nivel === 'SINTETICA';
+        const tipoCls = (c.tipo || '').toLowerCase();
+        html += `
+        <div class="plano-row ${isSint ? 'sintetica' : 'analitica'} ${c.ativo ? '' : 'inativa'}">
+            <span class="plano-cod" style="padding-left:${depth * 18}px;">${finEsc(c.codigo || '')}</span>
+            <span class="plano-nome">
+                <i class="ph ${isSint ? 'ph-folder-notch' : 'ph-file-text'}" style="color:var(--text-muted);"></i>
+                ${finEsc(c.nome)}
+                <span class="badge-tipo ${tipoCls}">${finEsc(c.tipo)}</span>
+                <span class="plano-nivel-tag">${isSint ? 'Sintética' : 'Analítica'}</span>
+            </span>
+            <span class="plano-acoes">
+                ${isSint ? `<button class="btn-mini add" title="Adicionar filha" onclick="finAbrirModalClasse(${c.codClasse})"><i class="ph ph-plus"></i></button>` : ''}
+                <button class="btn-mini" title="Editar" onclick="finEditarClasse(${c.codClasse})"><i class="ph ph-pencil-simple"></i></button>
+                <button class="btn-mini" title="${c.ativo ? 'Inativar' : 'Reativar'}" onclick="finAlternarAtivoClasse(${c.codClasse})"><i class="ph ${c.ativo ? 'ph-eye-slash' : 'ph-eye'}"></i></button>
+                <button class="btn-mini danger" title="Excluir" onclick="finExcluirClasse(${c.codClasse})"><i class="ph ph-trash"></i></button>
+            </span>
+        </div>`;
+        (filhosPorPai[c.codClasse] || []).forEach(f => render(f, depth + 1));
+    };
+    classes.filter(c => !c.codClassePai).forEach(r => render(r, 0));
+    cont.innerHTML = html;
+}
+
+function finPopularSelectPai() {
+    const tipo = document.getElementById('classeTipo').value;
+    const sel = document.getElementById('classePai');
+    const atual = sel.value;
+    const sinteticas = (finClassesCache || []).filter(c => c.nivel === 'SINTETICA' && c.tipo === tipo);
+    sel.innerHTML = '<option value="">-- Raiz (sem pai) --</option>' +
+        sinteticas.map(c => `<option value="${c.codClasse}">${c.codigo ? c.codigo + ' · ' : ''}${finEsc(c.nome)}</option>`).join('');
+    sel.value = atual;
+}
+
+function finOnNivelChange() {
+    const nivel = document.getElementById('classeNivel').value;
+    const hint = document.getElementById('classePaiHint');
+    if (hint) hint.innerText = nivel === 'ANALITICA'
+        ? 'Analítica: recebe lançamentos. Em geral fica abaixo de uma sintética.'
+        : 'Sintética: apenas agrupa contas (não recebe lançamento).';
+}
+
+function finAbrirModalClasse(paiId = null) {
+    document.getElementById('classeId').value = '';
+    document.getElementById('classeNome').value = '';
+    document.getElementById('classeCodigo').value = '';
+    document.getElementById('classeNivel').value = 'ANALITICA';
+    document.getElementById('tituloModalClasse').innerText = 'Nova Classe Financeira';
+    if (paiId) {
+        const pai = (finClassesCache || []).find(c => c.codClasse === paiId);
+        if (pai) {
+            document.getElementById('classeTipo').value = pai.tipo;
+            finPopularSelectPai();
+            document.getElementById('classePai').value = String(paiId);
+        }
+    } else {
+        finPopularSelectPai();
+        document.getElementById('classePai').value = '';
+    }
+    finOnNivelChange();
+    document.getElementById('modalClasse').classList.add('open');
+}
+
+function finEditarClasse(id) {
+    const c = (finClassesCache || []).find(x => x.codClasse === id);
+    if (!c) return;
+    document.getElementById('classeId').value = c.codClasse;
+    document.getElementById('classeNome').value = c.nome || '';
+    document.getElementById('classeTipo').value = c.tipo;
+    document.getElementById('classeNivel').value = c.nivel;
+    document.getElementById('classeCodigo').value = c.codigo || '';
+    finPopularSelectPai();
+    document.getElementById('classePai').value = c.codClassePai ? String(c.codClassePai) : '';
+    document.getElementById('tituloModalClasse').innerText = 'Editar Classe';
+    finOnNivelChange();
+    document.getElementById('modalClasse').classList.add('open');
+}
+
+function finFecharModalClasse() {
+    document.getElementById('modalClasse').classList.remove('open');
+}
+
+async function finSalvarClasse() {
+    const id = document.getElementById('classeId').value;
+    const payload = {
+        nome: document.getElementById('classeNome').value.trim(),
+        tipo: document.getElementById('classeTipo').value,
+        nivel: document.getElementById('classeNivel').value,
+        codClassePai: document.getElementById('classePai').value ? Number(document.getElementById('classePai').value) : null,
+        codigo: document.getElementById('classeCodigo').value.trim() || null
+    };
+    if (!payload.nome) { mostrarToast('Informe o nome da classe.', 'warning'); return; }
+    try {
+        const url = id ? `${API_URL}/api/financeiro/classes/${id}` : `${API_URL}/api/financeiro/classes`;
+        const res = await fetch(url, {
+            method: id ? 'PUT' : 'POST',
+            headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) {
+            mostrarToast(id ? 'Classe atualizada!' : 'Classe criada!', 'success');
+            finFecharModalClasse();
+            await finCarregarPlano();
+            carregarClassesNosSeletores();
+        } else {
+            mostrarToast(body.erro || 'Erro ao salvar classe.', 'error');
+        }
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
+async function finAlternarAtivoClasse(id) {
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/classes/${id}/ativo`, { method: 'PATCH', headers: getAuthHeader() });
+        if (res.ok) { finCarregarPlano(); carregarClassesNosSeletores(); }
+        else mostrarToast('Erro ao alterar status.', 'error');
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
+async function finExcluirClasse(id) {
+    if (!confirm('Excluir esta classe? Se tiver filhos ou lançamentos, prefira inativar.')) return;
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/classes/${id}`, { method: 'DELETE', headers: getAuthHeader() });
+        if (res.status === 204) {
+            mostrarToast('Classe excluída.', 'success');
+            finCarregarPlano(); carregarClassesNosSeletores(); return;
+        }
+        const body = await res.json().catch(() => ({}));
+        mostrarToast(body.erro || 'Não foi possível excluir.', 'error');
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
+/* DFC */
+async function finGerarDfc() {
+    let ini = document.getElementById('dfcInicio').value;
+    let fim = document.getElementById('dfcFim').value;
+    if (!ini || !fim) {
+        const hoje = new Date();
+        const primeiro = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+        const ultimo = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+        ini = ini || primeiro.toISOString().split('T')[0];
+        fim = fim || ultimo.toISOString().split('T')[0];
+        document.getElementById('dfcInicio').value = ini;
+        document.getElementById('dfcFim').value = fim;
+    }
+    const cont = document.getElementById('dfcConteudo');
+    cont.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);"><i class="ph ph-spinner ph-spin"></i> Gerando...</div>';
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/dfc?inicio=${ini}&fim=${fim}`, { headers: getAuthHeader() });
+        const body = await res.json();
+        if (!res.ok) { cont.innerHTML = `<div style="padding:24px;color:var(--danger);text-align:center;">${body.erro || 'Erro ao gerar DFC.'}</div>`; return; }
+        finRenderDfc(body);
+    } catch (e) {
+        cont.innerHTML = '<div style="padding:24px;color:var(--danger);text-align:center;">Erro de conexão.</div>';
+    }
+}
+
+let dfcCache = null;
+let dfcModo = 'consolidada'; // 'consolidada' | 'mensal'
+
+function finRenderDfc(dfc) {
+    dfcCache = dfc;
+    renderDfcView();
+}
+
+function finSetDfcModo(modo) {
+    dfcModo = modo;
+    renderDfcView();
+}
+
+function renderDfcView() {
+    const dfc = dfcCache;
+    if (!dfc) return;
+    const cont = document.getElementById('dfcConteudo');
+    const mensal = dfcModo === 'mensal';
+    const meses = dfc.meses || [];
+    const nMeses = meses.length;
+    const colHeaders = mensal ? [...meses.map(m => m.label), 'Total'] : ['Total'];
+
+    let html = `<div class="dfc-modo">
+        <button class="dfc-modo-btn ${!mensal ? 'ativo' : ''}" onclick="finSetDfcModo('consolidada')"><i class="ph ph-rows"></i> Consolidada</button>
+        <button class="dfc-modo-btn ${mensal ? 'ativo' : ''}" onclick="finSetDfcModo('mensal')"><i class="ph ph-columns"></i> Mensal</button>
+    </div>`;
+
+    html += `<table class="dfc-grid"><thead><tr>
+        <th class="dfc-col-nome">Categoria</th>
+        ${colHeaders.map(h => `<th>${h}</th>`).join('')}
+    </tr></thead><tbody>`;
+
+    const secoes = [
+        { titulo: 'Receitas', cls: 'receita', nodos: dfc.receitas },
+        { titulo: 'Custos',   cls: 'custo',   nodos: dfc.custos },
+        { titulo: 'Despesas', cls: 'despesa', nodos: dfc.despesas }
+    ];
+    secoes.forEach(s => {
+        const tot = dfcSomaColunas(s.nodos || [], mensal, nMeses);
+        html += `<tr class="dfc-secao-row ${s.cls}"><td class="dfc-col-nome">${s.titulo}</td>${tot.map(v => `<td>${finMoeda(v)}</td>`).join('')}</tr>`;
+        if (!s.nodos || s.nodos.length === 0) {
+            html += `<tr class="analitica"><td class="dfc-col-nome" style="color:var(--text-muted);">Sem movimentações</td>${colHeaders.map(() => '<td></td>').join('')}</tr>`;
+        } else {
+            html += finRenderDfcLinhas(s.nodos, mensal, 0);
+        }
+    });
+    html += `</tbody></table>`;
+
+    // Rodapé de variação
+    const v = dfc.variacao || {};
+    const linha = (label, arrMes, total, cls = '') => {
+        const vals = mensal ? [...(arrMes || []), total] : [total];
+        return `<tr class="dfc-foot-row ${cls}"><td class="dfc-col-nome">${label}</td>${vals.map(x => `<td>${finMoeda(x)}</td>`).join('')}</tr>`;
+    };
+    html += `<div class="dfc-fech-titulo">Variação do Fluxo de Caixa</div>
+        <table class="dfc-grid dfc-fechamento"><tbody>
+        ${linha('Saldo Inicial das Contas', v.saldoInicialMes, v.saldoInicial)}
+        ${linha('(+) Entradas', v.entradasMes, v.totalEntradas)}
+        ${linha('(−) Custos', v.custosMes, v.totalCustos)}
+        ${linha('(−) Despesas', v.despesasMes, v.totalDespesas)}
+        ${linha('(=) Saldo Final', v.saldoFinalMes, v.saldoFinal, 'final')}
+    </tbody></table>`;
+
+    cont.innerHTML = html;
+}
+
+function finRenderDfcLinhas(nodos, mensal, depth) {
+    let html = '';
+    (nodos || []).forEach(n => {
+        const isSint = n.nivel === 'SINTETICA';
+        const vals = mensal ? [...(n.valoresPorMes || []), n.valor] : [n.valor];
+        html += `<tr class="${isSint ? 'sintetica' : 'analitica'}">
+            <td class="dfc-col-nome" style="padding-left:${12 + depth * 16}px;">
+                <span class="dfc-cod">${finEsc(n.codigo || '')}</span>${finEsc(n.nome)}
+            </td>
+            ${vals.map(x => `<td>${finMoeda(x)}</td>`).join('')}
+        </tr>`;
+        html += finRenderDfcLinhas(n.filhos, mensal, depth + 1);
+    });
+    return html;
+}
+
+function dfcSomaColunas(nodos, mensal, nMeses) {
+    const cols = mensal ? nMeses + 1 : 1;
+    const acc = new Array(cols).fill(0);
+    nodos.forEach(n => {
+        const vals = mensal ? [...(n.valoresPorMes || []), n.valor] : [n.valor];
+        vals.forEach((v, i) => { acc[i] += Number(v) || 0; });
+    });
+    return acc;
+}
+
+/* ── Contas Financeiras ─────────────────────────────────────────────── */
+let finContasCache = [];
+let finParametrosCache = { codContaCaixaPadrao: null, codContaBancoPadrao: null };
+
+async function carregarContasFin() {
+    try {
+        const [resC, resP] = await Promise.all([
+            fetch(`${API_URL}/api/financeiro/contas`, { headers: getAuthHeader() }),
+            fetch(`${API_URL}/api/financeiro/parametros`, { headers: getAuthHeader() })
+        ]);
+        if (resC.ok) finContasCache = await resC.json();
+        if (resP.ok) finParametrosCache = await resP.json();
+        preencherSeletoresConta();
+    } catch (e) { /* silencioso */ }
+}
+
+function preencherSeletoresConta() {
+    const ativas = (finContasCache || []).filter(c => c.ativo);
+    const opt = c => `<option value="${c.codConta}">${finEsc(c.nome)} (${c.tipoConta === 'CAIXA' ? 'Caixa' : 'Banco'})</option>`;
+    const html = ativas.map(opt).join('');
+    const selCp = document.getElementById('cpCodContaFin');
+    if (selCp) { const a = selCp.value; selCp.innerHTML = '<option value="">-- Informar na baixa --</option>' + html; selCp.value = a; }
+    const selBaixa = document.getElementById('baixaConta');
+    if (selBaixa) { const a = selBaixa.value; selBaixa.innerHTML = '<option value="">-- Selecione --</option>' + html; selBaixa.value = a; }
+}
+
+async function finCarregarContas() {
+    const corpo = document.getElementById('finContasCorpo');
+    corpo.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;"><i class="ph ph-spinner ph-spin"></i> Carregando...</td></tr>';
+    await carregarContasFin();
+    finRenderContas();
+}
+
+function finRenderContas() {
+    const corpo = document.getElementById('finContasCorpo');
+    if (!finContasCache || finContasCache.length === 0) {
+        corpo.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma conta cadastrada. Clique em "Nova Conta".</td></tr>';
+        return;
+    }
+    const caixaP = finParametrosCache?.codContaCaixaPadrao;
+    const bancoP = finParametrosCache?.codContaBancoPadrao;
+    corpo.innerHTML = finContasCache.map(c => {
+        const ehPadrao = c.codConta === caixaP || c.codConta === bancoP;
+        const tipoLbl = c.tipoConta === 'CAIXA' ? 'Caixa' : 'Banco';
+        const padraoCel = ehPadrao
+            ? '<span class="badge-tipo receita"><i class="ph ph-star-fill"></i> Padrão</span>'
+            : `<button class="btn-action" onclick="finDefinirPadraoConta(${c.codConta})">Tornar padrão</button>`;
+        return `<tr style="${c.ativo ? '' : 'opacity:0.5;'}">
+            <td><strong>${finEsc(c.nome)}</strong></td>
+            <td class="align-center"><span class="badge-tipo ${c.tipoConta === 'CAIXA' ? 'custo' : 'despesa'}">${tipoLbl}</span></td>
+            <td class="align-right">${finMoeda(c.saldoInicial)}</td>
+            <td class="align-center">${padraoCel}</td>
+            <td class="align-center">${c.ativo ? '<span class="status-badge paga">Ativa</span>' : '<span class="status-badge vencida">Inativa</span>'}</td>
+            <td><div class="cp-actions-cell">
+                <button class="btn-action" onclick="finEditarConta(${c.codConta})" title="Editar"><i class="ph ph-pencil-simple"></i></button>
+                <button class="btn-action" onclick="finAlternarAtivoConta(${c.codConta})" title="${c.ativo ? 'Inativar' : 'Reativar'}"><i class="ph ${c.ativo ? 'ph-prohibit' : 'ph-check'}"></i></button>
+                <button class="btn-action btn-danger" onclick="finExcluirConta(${c.codConta})" title="Excluir"><i class="ph ph-trash"></i></button>
+            </div></td>
+        </tr>`;
+    }).join('');
+}
+
+function finAbrirModalConta(id = null) {
+    const c = id ? finContasCache.find(x => x.codConta === id) : null;
+    document.getElementById('tituloModalConta').innerText = c ? 'Editar Conta' : 'Nova Conta Financeira';
+    document.getElementById('contaId').value = c?.codConta || '';
+    document.getElementById('contaNome').value = c?.nome || '';
+    document.getElementById('contaTipo').value = c?.tipoConta || 'CAIXA';
+    const inp = document.getElementById('contaSaldoInicial');
+    if (c && c.saldoInicial) { inp.value = (c.saldoInicial * 100).toFixed(0); mascaraMoeda(inp); }
+    else inp.value = '';
+    document.getElementById('modalConta').classList.add('open');
+}
+function finEditarConta(id) { finAbrirModalConta(id); }
+function finFecharModalConta() { document.getElementById('modalConta').classList.remove('open'); }
+
+async function finSalvarConta() {
+    const id = document.getElementById('contaId').value;
+    const payload = {
+        nome: document.getElementById('contaNome').value.trim(),
+        tipoConta: document.getElementById('contaTipo').value,
+        saldoInicial: converterMoedaParaFloat(document.getElementById('contaSaldoInicial').value || '0')
+    };
+    if (!payload.nome) { mostrarToast('Informe o nome da conta.', 'warning'); return; }
+    try {
+        const url = id ? `${API_URL}/api/financeiro/contas/${id}` : `${API_URL}/api/financeiro/contas`;
+        const res = await fetch(url, { method: id ? 'PUT' : 'POST', headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) { mostrarToast(id ? 'Conta atualizada!' : 'Conta criada!', 'success'); finFecharModalConta(); finCarregarContas(); }
+        else mostrarToast(body.erro || 'Erro ao salvar conta.', 'error');
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
+async function finDefinirPadraoConta(id) {
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/contas/${id}/padrao`, { method: 'PATCH', headers: getAuthHeader() });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) { mostrarToast('Conta padrão definida.', 'success'); finCarregarContas(); }
+        else mostrarToast(body.erro || 'Erro ao definir padrão.', 'error');
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
+async function finAlternarAtivoConta(id) {
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/contas/${id}/ativo`, { method: 'PATCH', headers: getAuthHeader() });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) finCarregarContas();
+        else mostrarToast(body.erro || 'Erro ao alterar status.', 'error');
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
+async function finExcluirConta(id) {
+    if (!confirm('Excluir esta conta? Se for padrão ou tiver movimentações, prefira inativar.')) return;
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/contas/${id}`, { method: 'DELETE', headers: getAuthHeader() });
+        if (res.status === 204) { mostrarToast('Conta excluída.', 'success'); finCarregarContas(); return; }
+        const body = await res.json().catch(() => ({}));
+        mostrarToast(body.erro || 'Não foi possível excluir.', 'error');
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
+/* ── Baixa (pagamento) com conta de saída ───────────────────────────── */
+function finAbrirModalBaixa(id) {
+    document.getElementById('baixaContaPagarId').value = id;
+    carregarContasFin().then(() => {
+        document.getElementById('baixaConta').value = finParametrosCache?.codContaCaixaPadrao || '';
+        document.getElementById('modalBaixa').classList.add('open');
+    });
+}
+function finFecharModalBaixa() { document.getElementById('modalBaixa').classList.remove('open'); }
+
+async function finConfirmarBaixa() {
+    const id = document.getElementById('baixaContaPagarId').value;
+    const codConta = document.getElementById('baixaConta').value;
+    if (!codConta) { mostrarToast('Selecione a conta de saída.', 'warning'); return; }
+    try {
+        const res = await fetch(`${API_URL}/api/contas-pagar/${id}/pagar`, {
+            method: 'PATCH',
+            headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ codContaFinanceira: Number(codConta) })
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) { mostrarToast('Conta quitada com sucesso!', 'success'); finFecharModalBaixa(); cpCarregarContas(); }
+        else mostrarToast(body.erro || 'Erro ao quitar conta.', 'error');
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
 }
