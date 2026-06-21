@@ -186,6 +186,37 @@ public class VendaService {
         }
     }
 
+    // ── Estorno (cancelamento) ───────────────────────────────────────────────
+
+    /**
+     * Estorna uma venda: devolve o estoque dos itens, estorna os lançamentos
+     * financeiros gerados por ela e marca a venda como estornada (mantém histórico).
+     */
+    @Transactional
+    public VendaEntity estornarVenda(Long codVenda, Long empresaId) {
+        VendaEntity venda = vendaRepository.findByCodVendaAndEmpresaId(codVenda, empresaId)
+                .orElseThrow(() -> new RuntimeException("Venda não encontrada ou não pertence a esta empresa."));
+        if (Boolean.TRUE.equals(venda.getEstornada()))
+            throw new RuntimeException("Esta venda já foi estornada.");
+
+        // 1) Devolve o estoque de cada item
+        for (ProdutoVendaEntity item : venda.getItens()) {
+            ProdutoEntity produto = item.getProduto();
+            if (produto == null) continue;
+            int atual = produto.getQuantidadeEstoque() != null ? produto.getQuantidadeEstoque() : 0;
+            int qtd = item.getQuantidade() != null ? item.getQuantidade() : 0;
+            produto.setQuantidadeEstoque(atual + qtd);
+            produtoRepository.save(produto);
+        }
+
+        // 2) Estorna os lançamentos financeiros (entradas) desta venda
+        lancamentoService.estornarPorOrigem(OrigemLancamento.VENDA, codVenda);
+
+        // 3) Marca como estornada
+        venda.setEstornada(true);
+        return vendaRepository.save(venda);
+    }
+
     // ── Relatórios ──────────────────────────────────────────────────────────
 
     public List<VendaResponseDTO> listarPorEmpresa(Long empresaId) {
@@ -207,6 +238,7 @@ public class VendaService {
         dto.setValorDebito(venda.getValorDebito());
         dto.setValorPago(venda.getValorPago());
         dto.setTroco(venda.getTroco());
+        dto.setEstornada(Boolean.TRUE.equals(venda.getEstornada()));
         if (venda.getItens() != null) {
             dto.setItens(venda.getItens().stream().map(item -> {
                 ItemVendaResponseDTO i = new ItemVendaResponseDTO();

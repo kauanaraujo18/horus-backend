@@ -51,6 +51,10 @@ public class VendaEntity implements Serializable {
     @Column(name = "troco")
     private BigDecimal troco;
 
+    /** Marca a venda como estornada (cancelada) — mantém o histórico. */
+    @Column(name = "estornada", nullable = false)
+    private Boolean estornada = false;
+
     @Column(name = "valor_dinheiro")
     private BigDecimal valorDinheiro;
 
@@ -90,7 +94,8 @@ public class VendaEntity implements Serializable {
         }
         if (this.desconto == null) this.desconto = BigDecimal.ZERO;
         if (this.acrescimo == null) this.acrescimo = BigDecimal.ZERO;
-        
+        if (this.estornada == null) this.estornada = false;
+
         // Garante que a lista de itens não seja nula
         if (this.itens == null) this.itens = new ArrayList<>();
     }

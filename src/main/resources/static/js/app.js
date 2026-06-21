@@ -3625,3 +3625,62 @@ async function finConfirmarBaixa() {
         else mostrarToast(body.erro || 'Erro ao quitar conta.', 'error');
     } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
 }
+
+/* ==========================================================================
+   HISTÓRICO DE VENDAS / ESTORNO
+   ========================================================================== */
+function finFecharModal(id) { document.getElementById(id)?.classList.remove('open'); }
+
+async function abrirHistoricoVendas() {
+    const corpo = document.getElementById('histVendasCorpo');
+    corpo.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;"><i class="ph ph-spinner ph-spin"></i> Carregando...</td></tr>';
+    document.getElementById('modalHistoricoVendas').classList.add('open');
+    try {
+        const res = await fetch(`${API_URL}/api/vendas`, { headers: getAuthHeader() });
+        if (!res.ok) throw new Error();
+        renderHistVendas(await res.json());
+    } catch (e) {
+        corpo.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:24px;">Erro ao carregar vendas.</td></tr>';
+    }
+}
+
+function renderHistVendas(vendas) {
+    const corpo = document.getElementById('histVendasCorpo');
+    if (!vendas || vendas.length === 0) {
+        corpo.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma venda registrada.</td></tr>';
+        return;
+    }
+    const formas = v => {
+        const p = [];
+        if (v.valorDinheiro > 0) p.push('Dinheiro');
+        if (v.valorPix > 0) p.push('Pix');
+        if (v.valorCredito > 0) p.push('Crédito');
+        if (v.valorDebito > 0) p.push('Débito');
+        return p.join(', ') || '—';
+    };
+    corpo.innerHTML = vendas.map(v => {
+        const dt = v.dataVenda ? new Date(v.dataVenda).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+        const status = v.estornada ? '<span class="status-badge estornada">Estornada</span>' : '<span class="status-badge realizada">Concluída</span>';
+        const acao = v.estornada
+            ? '<span style="color:var(--text-muted);font-size:11px;">—</span>'
+            : `<button class="btn-action btn-danger" onclick="estornarVendaUI(${v.codVenda})"><i class="ph ph-arrow-u-up-left"></i> Estornar</button>`;
+        return `<tr style="${v.estornada ? 'opacity:0.6;' : ''}">
+            <td><strong>#${v.codVenda}</strong></td>
+            <td>${dt}</td>
+            <td class="align-right">${finMoeda(v.valorTotal)}</td>
+            <td style="font-size:12px;color:var(--text-secondary);">${formas(v)}</td>
+            <td class="align-center">${status}</td>
+            <td class="align-center">${acao}</td>
+        </tr>`;
+    }).join('');
+}
+
+async function estornarVendaUI(id) {
+    if (!confirm(`Estornar a venda #${id}?\nIsso devolve o estoque dos itens e estorna os lançamentos financeiros. Não pode ser desfeito.`)) return;
+    try {
+        const res = await fetch(`${API_URL}/api/vendas/${id}/estornar`, { method: 'PATCH', headers: getAuthHeader() });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) { mostrarToast('Venda estornada com sucesso!', 'success'); abrirHistoricoVendas(); }
+        else mostrarToast(body.erro || 'Erro ao estornar venda.', 'error');
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}

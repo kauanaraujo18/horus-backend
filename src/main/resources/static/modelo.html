@@ -374,6 +374,9 @@
                         <button onclick="abrirModalPesquisaParaCaixa()" class="btn-secondary">
                             <i class="ph ph-magnifying-glass"></i> Busca Manual
                         </button>
+                        <button onclick="abrirHistoricoVendas()" class="btn-secondary">
+                            <i class="ph ph-clock-counter-clockwise"></i> Histórico / Estorno
+                        </button>
                     </div>
 
                     <div id="painelLeitorBarras" class="reader-panel" style="display: none;">
@@ -1169,6 +1172,36 @@
                 <button class="btn-primary" style="width:auto;padding:10px 20px;" onclick="finConfirmarBaixa()">
                     <i class="ph ph-check-circle"></i> Pagar
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Histórico de Vendas / Estorno -->
+    <div id="modalHistoricoVendas" class="fin-modal-backdrop">
+        <div class="fin-modal" style="max-width:860px;">
+            <div class="fin-modal-header">
+                <h3><i class="ph ph-clock-counter-clockwise" style="margin-right:6px;"></i> Histórico de Vendas</h3>
+                <button class="modal-close-x" onclick="finFecharModal('modalHistoricoVendas')"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="fin-modal-body" style="padding:0;">
+                <div class="table-container" style="max-height:60vh;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Data</th>
+                                <th class="align-right">Total</th>
+                                <th>Pagamento</th>
+                                <th class="align-center">Status</th>
+                                <th class="align-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="histVendasCorpo">
+                            <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">
+                                <i class="ph ph-spinner ph-spin"></i> Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

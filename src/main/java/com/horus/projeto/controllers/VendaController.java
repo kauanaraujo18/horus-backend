@@ -45,10 +45,22 @@ public class VendaController {
     public ResponseEntity<List<VendaResponseDTO>> listarVendas() {
         // 1. Pescamos o usuário logado
         var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        
+
         // 2. Extraímos a empresa
         Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
-        
+
         return ResponseEntity.ok(vendaService.listarPorEmpresa(idEmpresaLogada));
+    }
+
+    @PatchMapping("/{id}/estornar")
+    public ResponseEntity<?> estornarVenda(@PathVariable Long id) {
+        try {
+            var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
+            vendaService.estornarVenda(id, idEmpresaLogada);
+            return ResponseEntity.ok(java.util.Map.of("mensagem", "Venda estornada com sucesso."));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("erro", e.getMessage()));
+        }
     }
 }

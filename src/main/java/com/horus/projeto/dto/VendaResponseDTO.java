@@ -18,6 +18,7 @@ public class VendaResponseDTO {
     private BigDecimal valorDebito;
     private BigDecimal valorPago;
     private BigDecimal troco;
+    private Boolean estornada;
 
     // Lista de Itens
     private List<ItemVendaResponseDTO> itens;
@@ -55,6 +56,9 @@ public class VendaResponseDTO {
 
     public BigDecimal getTroco() { return troco; }
     public void setTroco(BigDecimal troco) { this.troco = troco; }
+
+    public Boolean getEstornada() { return estornada; }
+    public void setEstornada(Boolean estornada) { this.estornada = estornada; }
 
     public List<ItemVendaResponseDTO> getItens() { return itens; }
     public void setItens(List<ItemVendaResponseDTO> itens) { this.itens = itens; }
