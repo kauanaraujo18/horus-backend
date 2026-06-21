@@ -963,6 +963,9 @@ async function deletarProduto(id) {
    MÓDULO 6: FRENTE DE CAIXA (PDV)
    ========================================================================== */
 function setupPDVModule() {
+    // Data de pagamento: inicia com hoje (editável)
+    definirDataVendaHoje();
+
     // Leitor de Barras
     const inputLeitor = document.getElementById('inputCodigoBarras');
     if (inputLeitor) {
@@ -1118,6 +1121,11 @@ function calcularTotaisCaixa() {
     document.getElementById('lblTroco').innerText = formatarMoeda(diff >= 0 ? diff : 0);
 }
 
+function definirDataVendaHoje() {
+    const el = document.getElementById('inputDataVenda');
+    if (el) el.value = new Date().toISOString().split('T')[0];
+}
+
 async function finalizarVenda() {
     if (carrinhoPDV.length === 0) { alert("O carrinho está vazio."); return; }
 
@@ -1144,6 +1152,7 @@ async function finalizarVenda() {
 
     const payload = {
         qtdParcelas: parseInt(document.getElementById('inputParcelas').value) || 1,
+        dataVenda: document.getElementById('inputDataVenda').value || null,
         desconto: desc,
         acrescimo: acres,
         valorDinheiro: vDin, valorPix: vPix, valorCredito: vCred, valorDebito: vDeb,
@@ -1165,6 +1174,7 @@ async function finalizarVenda() {
                 document.getElementById(id).value = '';
             });
             document.getElementById('inputParcelas').value = '1';
+            definirDataVendaHoje(); // volta a data para hoje
             calcularTotaisCaixa();
         } else {
             const erro = await res.text();

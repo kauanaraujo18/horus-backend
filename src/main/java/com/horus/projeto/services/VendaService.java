@@ -50,7 +50,11 @@ public class VendaService {
     public VendaEntity registrarVenda(VendaRequestDTO dadosVenda, Long empresaId) {
 
         VendaEntity venda = new VendaEntity();
-        venda.setDataVenda(LocalDateTime.now());
+        // data_venda = data de pagamento informada no PDV (ou hoje), preservando a hora atual.
+        // data_registro = sempre o timestamp real do registro.
+        java.time.LocalDate dataPagamento = dadosVenda.getDataVenda() != null
+                ? dadosVenda.getDataVenda() : java.time.LocalDate.now();
+        venda.setDataVenda(dataPagamento.atTime(java.time.LocalTime.now()));
         venda.setDataRegistro(LocalDateTime.now());
         venda.setQtdParcelas(dadosVenda.getQtdParcelas() != null ? dadosVenda.getQtdParcelas() : 1);
 

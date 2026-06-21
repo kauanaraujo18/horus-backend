@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 @Data
@@ -13,6 +14,8 @@ import java.util.List;
 public class VendaRequestDTO {
 
     private Integer qtdParcelas;
+    /** Data de pagamento informada no PDV (vai para data_venda). Se nula, usa hoje. */
+    private LocalDate dataVenda;
     private BigDecimal desconto;
     private BigDecimal acrescimo;
     private List<ItemVendaDTO> itens;
