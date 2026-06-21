@@ -59,6 +59,17 @@ public interface LancamentoFinanceiroRepository extends JpaRepository<Lancamento
                                        @Param("inicio") LocalDate inicio,
                                        @Param("fim") LocalDate fim);
 
+    /** Saldo assinado do razão agrupado por conta financeira (base do saldo atual por conta). */
+    @Query("""
+           SELECT l.codContaFinanceira,
+                  SUM(CASE WHEN l.tipoMovimento = com.horus.projeto.enums.TipoMovimento.ENTRADA
+                           THEN l.valor ELSE -l.valor END)
+           FROM LancamentoFinanceiroEntity l
+           WHERE l.empresa.id = :empresaId AND l.estornado = false AND l.codContaFinanceira IS NOT NULL
+           GROUP BY l.codContaFinanceira
+           """)
+    List<Object[]> somarAssinadoPorConta(@Param("empresaId") Long empresaId);
+
     /** Guarda de exclusão da classe: existe lançamento histórico nela? */
     boolean existsByCodClasse(Long codClasse);
 
@@ -70,4 +81,7 @@ public interface LancamentoFinanceiroRepository extends JpaRepository<Lancamento
 
     /** Versão escopada pelo tipo de origem — evita colisão de id entre VENDA e CONTA_PAGAR. */
     List<LancamentoFinanceiroEntity> findByOrigemAndOrigemIdAndEstornadoFalse(OrigemLancamento origem, Long origemId);
+
+    /** Existe lançamento ativo para esta origem? (usado no reprocessamento de vendas antigas) */
+    boolean existsByOrigemAndOrigemIdAndEstornadoFalse(OrigemLancamento origem, Long origemId);
 }

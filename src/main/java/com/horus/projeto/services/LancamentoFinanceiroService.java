@@ -99,6 +99,11 @@ public class LancamentoFinanceiroService {
         lancamentoRepo.save(l);
     }
 
+    /** Já existe lançamento ativo para esta origem? (evita duplicar no reprocessamento). */
+    public boolean temLancamentoAtivo(OrigemLancamento origem, Long origemId) {
+        return lancamentoRepo.existsByOrigemAndOrigemIdAndEstornadoFalse(origem, origemId);
+    }
+
     /** Estorna todos os lançamentos ativos de uma origem (tipo + id) — escopo seguro. */
     @Transactional
     public void estornarPorOrigem(OrigemLancamento origem, Long origemId) {

@@ -52,6 +52,18 @@ public class VendaController {
         return ResponseEntity.ok(vendaService.listarPorEmpresa(idEmpresaLogada));
     }
 
+    @PostMapping("/reprocessar-financeiro")
+    public ResponseEntity<?> reprocessarFinanceiro() {
+        try {
+            var usuarioLogado = (UsuarioEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            Long idEmpresaLogada = usuarioLogado.getEmpresa().getId();
+            int n = vendaService.reprocessarLancamentos(idEmpresaLogada);
+            return ResponseEntity.ok(java.util.Map.of("reprocessadas", n));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("erro", e.getMessage()));
+        }
+    }
+
     @PatchMapping("/{id}/estornar")
     public ResponseEntity<?> estornarVenda(@PathVariable Long id) {
         try {

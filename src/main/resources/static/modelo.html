@@ -981,12 +981,43 @@
                         <button class="menu-card" id="btnContasFin">
                             <i class="ph ph-wallet"></i><span>Contas Financeiras</span>
                         </button>
+                        <button class="menu-card" id="btnTransferencias">
+                            <i class="ph ph-arrows-left-right"></i><span>Transferências</span>
+                        </button>
                         <button class="menu-card" id="btnPlanoContas">
                             <i class="ph ph-tree-structure"></i><span>Plano de Contas</span>
                         </button>
                         <button class="menu-card" id="btnDfc">
                             <i class="ph ph-chart-line-up"></i><span>Fluxo de Caixa (DFC)</span>
                         </button>
+                    </div>
+                </div>
+
+                <!-- ── TRANSFERÊNCIAS ───────────────────────────────── -->
+                <div id="finViewTransferencias" class="view-section" style="display:none;">
+                    <div class="toolbar">
+                        <h3 style="font-size:14px;font-weight:600;color:var(--text-main);flex:1;">Transferências entre Contas</h3>
+                        <button class="btn-primary" style="width:auto;padding:10px 16px;" onclick="finAbrirModalTransf()">
+                            <i class="ph ph-plus"></i> Nova Transferência
+                        </button>
+                    </div>
+                    <div class="table-container" style="max-height:56vh;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th class="align-center">Data</th>
+                                    <th>De → Para</th>
+                                    <th>Descrição</th>
+                                    <th class="align-right">Valor</th>
+                                    <th class="align-center">Status</th>
+                                    <th class="align-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="finTransfCorpo">
+                                <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">
+                                    <i class="ph ph-spinner ph-spin"></i> Carregando...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -1005,6 +1036,7 @@
                                     <th>Conta</th>
                                     <th class="align-center">Tipo</th>
                                     <th class="align-right">Saldo Inicial</th>
+                                    <th class="align-right">Saldo Atual</th>
                                     <th class="align-center">Padrão</th>
                                     <th class="align-center">Status</th>
                                     <th class="align-center">Ações</th>
@@ -1044,6 +1076,9 @@
                         <div class="input-group-inline"><label>Até</label><input type="date" id="dfcFim"></div>
                         <button class="btn-primary" style="width:auto;padding:9px 18px;" onclick="finGerarDfc()">
                             <i class="ph ph-arrows-clockwise"></i> Gerar
+                        </button>
+                        <button class="btn-secondary" style="margin-left:auto;" onclick="finReprocessarVendas()" title="Gera os lançamentos das vendas antigas que ainda não aparecem no DFC">
+                            <i class="ph ph-clock-clockwise"></i> Reprocessar vendas
                         </button>
                     </div>
                     <div id="dfcConteudo" class="dfc-conteudo scrollable-box">
@@ -1206,6 +1241,47 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Nova Transferência entre contas -->
+    <div id="modalTransferencia" class="fin-modal-backdrop">
+        <div class="fin-modal">
+            <div class="fin-modal-header">
+                <h3>Nova Transferência</h3>
+                <button class="modal-close-x" onclick="finFecharModal('modalTransferencia')"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="fin-modal-body">
+                <div class="form-grid-2-fin">
+                    <div class="input-group">
+                        <label for="transfOrigem">Conta de Origem *</label>
+                        <select id="transfOrigem"></select>
+                    </div>
+                    <div class="input-group">
+                        <label for="transfDestino">Conta de Destino *</label>
+                        <select id="transfDestino"></select>
+                    </div>
+                    <div class="input-group">
+                        <label for="transfValor">Valor *</label>
+                        <input type="text" id="transfValor" placeholder="R$ 0,00" oninput="mascaraMoeda(this)">
+                    </div>
+                    <div class="input-group">
+                        <label for="transfData">Data *</label>
+                        <input type="date" id="transfData">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="transfDescricao">Descrição</label>
+                    <input type="text" id="transfDescricao" placeholder="Ex: Sangria do caixa para o banco">
+                </div>
+                <p style="font-size:11px;color:var(--text-muted);">Transferência é neutra ao DFC — só remaneja saldo entre as contas.</p>
+            </div>
+            <div class="fin-modal-footer">
+                <button class="btn-secondary" onclick="finFecharModal('modalTransferencia')">Cancelar</button>
+                <button class="btn-primary" style="width:auto;padding:10px 20px;" onclick="finSalvarTransf()">
+                    <i class="ph ph-arrows-left-right"></i> Transferir
+                </button>
             </div>
         </div>
     </div>

@@ -30,6 +30,12 @@ public class ContaFinanceiraController {
         return ResponseEntity.ok(service.listar(getEmpresaIdLogada()));
     }
 
+    /** Saldo atual de cada conta (saldo inicial + razão ± transferências). Map<codConta, saldo>. */
+    @GetMapping("/saldos")
+    public ResponseEntity<Map<Long, java.math.BigDecimal>> saldos() {
+        return ResponseEntity.ok(service.saldosAtuais(getEmpresaIdLogada()));
+    }
+
     @PostMapping
     public ResponseEntity<?> criar(@RequestBody ContaFinanceiraRequestDTO dto) {
         try {

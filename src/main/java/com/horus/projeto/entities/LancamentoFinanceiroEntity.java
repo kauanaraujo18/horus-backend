@@ -67,6 +67,13 @@ public class LancamentoFinanceiroEntity {
     @Column(nullable = false)
     private Boolean estornado = false;
 
+    /** Conciliação bancária (marcação manual). */
+    @Column(nullable = false)
+    private Boolean conciliado = false;
+
+    @Column(name = "data_conciliacao")
+    private java.time.LocalDate dataConciliacao;
+
     /** Quando este lançamento É um estorno, aponta para o lançamento revertido. */
     @Column(name = "cod_estorno_de")
     private Long codEstornoDe;

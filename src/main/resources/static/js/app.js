@@ -3160,13 +3160,14 @@ function finMoeda(v) {
 function setupFinanceiroModule() {
     document.getElementById('btnVoltarFinanceiro')?.addEventListener('click', () => finNavegar('menu'));
     document.getElementById('btnContasFin')?.addEventListener('click', () => finNavegar('contas'));
+    document.getElementById('btnTransferencias')?.addEventListener('click', () => finNavegar('transferencias'));
     document.getElementById('btnPlanoContas')?.addEventListener('click', () => finNavegar('plano'));
     document.getElementById('btnDfc')?.addEventListener('click', () => finNavegar('dfc'));
     document.getElementById('classeTipo')?.addEventListener('change', () => finPopularSelectPai());
 }
 
 function finNavegar(tela) {
-    ['finViewMenu', 'finViewContas', 'finViewPlano', 'finViewDfc'].forEach(id => {
+    ['finViewMenu', 'finViewContas', 'finViewTransferencias', 'finViewPlano', 'finViewDfc'].forEach(id => {
         const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
     const titulo = document.getElementById('tituloJanelaFinanceiro');
@@ -3176,6 +3177,11 @@ function finNavegar(tela) {
         titulo.innerText = 'Financeiro › Contas Financeiras';
         btnVoltar.style.display = 'flex';
         finCarregarContas();
+    } else if (tela === 'transferencias') {
+        document.getElementById('finViewTransferencias').style.display = 'block';
+        titulo.innerText = 'Financeiro › Transferências';
+        btnVoltar.style.display = 'flex';
+        finCarregarTransferencias();
     } else if (tela === 'plano') {
         document.getElementById('finViewPlano').style.display = 'block';
         titulo.innerText = 'Financeiro › Plano de Contas';
@@ -3463,6 +3469,20 @@ function renderDfcView() {
     cont.innerHTML = html;
 }
 
+async function finReprocessarVendas() {
+    if (!confirm('Gerar os lançamentos das vendas antigas que ainda não estão no DFC? (não duplica)')) return;
+    try {
+        const res = await fetch(`${API_URL}/api/vendas/reprocessar-financeiro`, { method: 'POST', headers: getAuthHeader() });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) {
+            mostrarToast(`${body.reprocessadas ?? 0} venda(s) reprocessada(s).`, 'success');
+            finGerarDfc();
+        } else {
+            mostrarToast(body.erro || 'Erro ao reprocessar.', 'error');
+        }
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
 function finRenderDfcLinhas(nodos, mensal, depth) {
     let html = '';
     (nodos || []).forEach(n => {
@@ -3492,15 +3512,18 @@ function dfcSomaColunas(nodos, mensal, nMeses) {
 /* ── Contas Financeiras ─────────────────────────────────────────────── */
 let finContasCache = [];
 let finParametrosCache = { codContaCaixaPadrao: null, codContaBancoPadrao: null };
+let finSaldosCache = {};
 
 async function carregarContasFin() {
     try {
-        const [resC, resP] = await Promise.all([
+        const [resC, resP, resS] = await Promise.all([
             fetch(`${API_URL}/api/financeiro/contas`, { headers: getAuthHeader() }),
-            fetch(`${API_URL}/api/financeiro/parametros`, { headers: getAuthHeader() })
+            fetch(`${API_URL}/api/financeiro/parametros`, { headers: getAuthHeader() }),
+            fetch(`${API_URL}/api/financeiro/contas/saldos`, { headers: getAuthHeader() })
         ]);
         if (resC.ok) finContasCache = await resC.json();
         if (resP.ok) finParametrosCache = await resP.json();
+        if (resS.ok) finSaldosCache = await resS.json();
         preencherSeletoresConta();
     } catch (e) { /* silencioso */ }
 }
@@ -3525,7 +3548,7 @@ async function finCarregarContas() {
 function finRenderContas() {
     const corpo = document.getElementById('finContasCorpo');
     if (!finContasCache || finContasCache.length === 0) {
-        corpo.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma conta cadastrada. Clique em "Nova Conta".</td></tr>';
+        corpo.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma conta cadastrada. Clique em "Nova Conta".</td></tr>';
         return;
     }
     const caixaP = finParametrosCache?.codContaCaixaPadrao;
@@ -3536,10 +3559,12 @@ function finRenderContas() {
         const padraoCel = ehPadrao
             ? '<span class="badge-tipo receita"><i class="ph ph-star-fill"></i> Padrão</span>'
             : `<button class="btn-action" onclick="finDefinirPadraoConta(${c.codConta})">Tornar padrão</button>`;
+        const saldoAtual = finSaldosCache[c.codConta];
         return `<tr style="${c.ativo ? '' : 'opacity:0.5;'}">
             <td><strong>${finEsc(c.nome)}</strong></td>
             <td class="align-center"><span class="badge-tipo ${c.tipoConta === 'CAIXA' ? 'custo' : 'despesa'}">${tipoLbl}</span></td>
             <td class="align-right">${finMoeda(c.saldoInicial)}</td>
+            <td class="align-right" style="font-weight:700;${Number(saldoAtual) < 0 ? 'color:var(--danger);' : ''}">${finMoeda(saldoAtual ?? 0)}</td>
             <td class="align-center">${padraoCel}</td>
             <td class="align-center">${c.ativo ? '<span class="status-badge paga">Ativa</span>' : '<span class="status-badge vencida">Inativa</span>'}</td>
             <td><div class="cp-actions-cell">
@@ -3633,6 +3658,92 @@ async function finConfirmarBaixa() {
         const body = await res.json().catch(() => ({}));
         if (res.ok) { mostrarToast('Conta quitada com sucesso!', 'success'); finFecharModalBaixa(); cpCarregarContas(); }
         else mostrarToast(body.erro || 'Erro ao quitar conta.', 'error');
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
+/* ── Transferências entre contas ────────────────────────────────────── */
+async function finCarregarTransferencias() {
+    const corpo = document.getElementById('finTransfCorpo');
+    corpo.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;"><i class="ph ph-spinner ph-spin"></i> Carregando...</td></tr>';
+    await carregarContasFin();
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/transferencias`, { headers: getAuthHeader() });
+        if (!res.ok) throw new Error();
+        finRenderTransf(await res.json());
+    } catch (e) {
+        corpo.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:24px;">Erro ao carregar transferências.</td></tr>';
+    }
+}
+
+function finNomeConta(id) {
+    const c = (finContasCache || []).find(x => x.codConta === id);
+    return c ? c.nome : ('#' + id);
+}
+
+function finRenderTransf(lista) {
+    const corpo = document.getElementById('finTransfCorpo');
+    if (!lista || lista.length === 0) {
+        corpo.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma transferência.</td></tr>';
+        return;
+    }
+    corpo.innerHTML = lista.map(t => {
+        const dt = t.data ? new Date(t.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+        const status = t.estornado ? '<span class="status-badge estornada">Estornada</span>' : '<span class="status-badge realizada">Ativa</span>';
+        const acao = t.estornado
+            ? '<span style="color:var(--text-muted);font-size:11px;">—</span>'
+            : `<button class="btn-action btn-danger" onclick="finEstornarTransf(${t.codTransferencia})"><i class="ph ph-arrow-u-up-left"></i> Estornar</button>`;
+        return `<tr style="${t.estornado ? 'opacity:0.6;' : ''}">
+            <td class="align-center">${dt}</td>
+            <td>${finEsc(finNomeConta(t.codContaOrigem))} <i class="ph ph-arrow-right" style="color:var(--text-muted);"></i> ${finEsc(finNomeConta(t.codContaDestino))}</td>
+            <td style="font-size:12px;color:var(--text-secondary);">${finEsc(t.descricao || '—')}</td>
+            <td class="align-right">${finMoeda(t.valor)}</td>
+            <td class="align-center">${status}</td>
+            <td class="align-center">${acao}</td>
+        </tr>`;
+    }).join('');
+}
+
+function finAbrirModalTransf() {
+    carregarContasFin().then(() => {
+        const ativas = (finContasCache || []).filter(c => c.ativo);
+        const opts = ativas.map(c => `<option value="${c.codConta}">${finEsc(c.nome)} (${c.tipoConta === 'CAIXA' ? 'Caixa' : 'Banco'})</option>`).join('');
+        document.getElementById('transfOrigem').innerHTML = opts;
+        document.getElementById('transfDestino').innerHTML = opts;
+        if (ativas.length > 1) document.getElementById('transfDestino').selectedIndex = 1;
+        document.getElementById('transfValor').value = '';
+        document.getElementById('transfData').value = new Date().toISOString().split('T')[0];
+        document.getElementById('transfDescricao').value = '';
+        document.getElementById('modalTransferencia').classList.add('open');
+    });
+}
+
+async function finSalvarTransf() {
+    const payload = {
+        codContaOrigem: Number(document.getElementById('transfOrigem').value),
+        codContaDestino: Number(document.getElementById('transfDestino').value),
+        valor: converterMoedaParaFloat(document.getElementById('transfValor').value || '0'),
+        data: document.getElementById('transfData').value || null,
+        descricao: document.getElementById('transfDescricao').value.trim() || null
+    };
+    if (!payload.valor || payload.valor <= 0) { mostrarToast('Informe um valor válido.', 'warning'); return; }
+    if (payload.codContaOrigem === payload.codContaDestino) { mostrarToast('Origem e destino devem ser diferentes.', 'warning'); return; }
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/transferencias`, {
+            method: 'POST', headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) { mostrarToast('Transferência realizada!', 'success'); finFecharModal('modalTransferencia'); finCarregarTransferencias(); }
+        else mostrarToast(body.erro || 'Erro ao transferir.', 'error');
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
+async function finEstornarTransf(id) {
+    if (!confirm('Estornar esta transferência? O saldo volta às contas originais.')) return;
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/transferencias/${id}/estornar`, { method: 'PATCH', headers: getAuthHeader() });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) { mostrarToast('Transferência estornada.', 'success'); finCarregarTransferencias(); }
+        else mostrarToast(body.erro || 'Erro ao estornar.', 'error');
     } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
 }
 

@@ -26,6 +26,7 @@ public class ContaFinanceiraService {
     private final LancamentoFinanceiroRepository lancamentoRepo;
     private final EmpresaRepository empresaRepository;
     private final ParametrosFinanceiroService parametrosService;
+    private final com.horus.projeto.repositories.TransferenciaRepository transferenciaRepo;
 
     @Transactional
     public List<ContaFinanceiraEntity> listar(Long empresaId) {
@@ -42,6 +43,25 @@ public class ContaFinanceiraService {
         ContaFinanceiraEntity banco = salvarNova(empresa, "Banco", TipoConta.BANCO, BigDecimal.ZERO);
         parametrosService.definirCaixaPadrao(empresaId, caixa.getCodConta());
         parametrosService.definirBancoPadrao(empresaId, banco.getCodConta());
+    }
+
+    /** Saldo ATUAL de cada conta = saldo inicial + razão da conta (± estornos) ± transferências. */
+    public java.util.Map<Long, java.math.BigDecimal> saldosAtuais(Long empresaId) {
+        java.util.Map<Long, java.math.BigDecimal> saldos = new java.util.HashMap<>();
+        for (ContaFinanceiraEntity c : contaRepo.findByEmpresaIdOrderByNomeAsc(empresaId))
+            saldos.put(c.getCodConta(), c.getSaldoInicial() != null ? c.getSaldoInicial() : java.math.BigDecimal.ZERO);
+        for (Object[] row : lancamentoRepo.somarAssinadoPorConta(empresaId)) {
+            Long conta = (Long) row[0];
+            if (conta != null && saldos.containsKey(conta))
+                saldos.merge(conta, (java.math.BigDecimal) row[1], java.math.BigDecimal::add);
+        }
+        for (com.horus.projeto.entities.TransferenciaEntity t : transferenciaRepo.findByEmpresaIdAndEstornadoFalse(empresaId)) {
+            if (saldos.containsKey(t.getCodContaDestino()))
+                saldos.merge(t.getCodContaDestino(), t.getValor(), java.math.BigDecimal::add);
+            if (saldos.containsKey(t.getCodContaOrigem()))
+                saldos.merge(t.getCodContaOrigem(), t.getValor().negate(), java.math.BigDecimal::add);
+        }
+        return saldos;
     }
 
     @Transactional
@@ -82,6 +102,9 @@ public class ContaFinanceiraService {
         }
         if (lancamentoRepo.existsByCodContaFinanceira(id)) {
             throw new IllegalArgumentException("Esta conta possui movimentações. Inative-a em vez de excluir.");
+        }
+        if (transferenciaRepo.existsByCodContaOrigemOrCodContaDestino(id, id)) {
+            throw new IllegalArgumentException("Esta conta possui transferências. Inative-a em vez de excluir.");
         }
         contaRepo.delete(conta);
     }

@@ -221,6 +221,24 @@ public class VendaService {
         return vendaRepository.save(venda);
     }
 
+    /**
+     * Gera os lançamentos financeiros das vendas que ainda não os têm (vendas antigas /
+     * anteriores ao módulo financeiro), datados na data_venda. Idempotente e não estornadas.
+     * Retorna quantas vendas foram reprocessadas.
+     */
+    @Transactional
+    public int reprocessarLancamentos(Long empresaId) {
+        List<VendaEntity> vendas = vendaRepository.findByEmpresaId(empresaId, Sort.by(Sort.Direction.ASC, "dataVenda"));
+        int reprocessadas = 0;
+        for (VendaEntity venda : vendas) {
+            if (Boolean.TRUE.equals(venda.getEstornada())) continue;
+            if (lancamentoService.temLancamentoAtivo(OrigemLancamento.VENDA, venda.getCodVenda())) continue;
+            gerarLancamentosDaVenda(venda, empresaId);
+            reprocessadas++;
+        }
+        return reprocessadas;
+    }
+
     // ── Relatórios ──────────────────────────────────────────────────────────
 
     public List<VendaResponseDTO> listarPorEmpresa(Long empresaId) {
