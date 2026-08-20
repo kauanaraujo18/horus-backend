@@ -1313,3 +1313,21 @@ button {
     background: #0d1117; color: #fff; font-weight: 800; font-size: 13px;
     background-image: radial-gradient(ellipse 50% 120% at 100% 0%, rgba(99,102,241,0.30) 0%, transparent 70%);
 }
+
+/* ── Conciliação bancária ────────────────────────────────────────────── */
+.conc-resumo { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.conc-box {
+    flex: 1; min-width: 150px;
+    background: var(--bg-solid); border: 1px solid var(--border-card);
+    border-radius: var(--radius-md); padding: 14px 16px;
+    box-shadow: var(--shadow-xs); position: relative; overflow: hidden;
+}
+.conc-box::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--gradient-brand); }
+.conc-box.ok::after   { background: var(--success); }
+.conc-box.dif::after  { background: var(--danger); }
+.conc-box .lbl { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.conc-box .val { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; margin-top: 4px; }
+.conc-box.ok  .val { color: #059669; }
+.conc-box.dif .val.zerada { color: #059669; }
+.conc-box.dif .val.aberta { color: var(--danger); }
+.conc-check { width: 17px; height: 17px; accent-color: var(--success); cursor: pointer; }

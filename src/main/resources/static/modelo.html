@@ -160,10 +160,10 @@
                         
                         <div class="form-grid">
                             <div class="input-group col-span-1">
-                                <label for="produtoCodigo">Código (EAN/SKU)</label>
+                                <label for="produtoCodigo">Código (EAN/SKU) <span style="color:var(--text-muted);font-weight:400;text-transform:none;">— opcional</span></label>
                                 <div class="input-with-action">
-                                    <input type="text" id="produtoCodigo" readonly placeholder="Clique para gerar EAN">
-                                    <i class="ph ph-barcode"></i>
+                                    <input type="text" id="produtoCodigo" placeholder="Deixe em branco ou gere um EAN">
+                                    <i class="ph ph-barcode" id="btnGerarEan" title="Gerar EAN-13" style="pointer-events:auto;cursor:pointer;"></i>
                                 </div>
                             </div>
                             <div class="input-group col-span-2">
@@ -984,6 +984,9 @@
                         <button class="menu-card" id="btnTransferencias">
                             <i class="ph ph-arrows-left-right"></i><span>Transferências</span>
                         </button>
+                        <button class="menu-card" id="btnConciliacao">
+                            <i class="ph ph-check-square-offset"></i><span>Conciliação</span>
+                        </button>
                         <button class="menu-card" id="btnPlanoContas">
                             <i class="ph ph-tree-structure"></i><span>Plano de Contas</span>
                         </button>
@@ -1045,6 +1048,31 @@
                             <tbody id="finContasCorpo">
                                 <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">
                                     <i class="ph ph-spinner ph-spin"></i> Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ── CONCILIAÇÃO BANCÁRIA ─────────────────────────── -->
+                <div id="finViewConciliacao" class="view-section" style="display:none;">
+                    <div class="dfc-toolbar">
+                        <div class="input-group-inline"><label>Conta</label>
+                            <select id="concConta" onchange="finGerarConciliacao()"></select>
+                        </div>
+                    </div>
+                    <div id="concResumo" class="conc-resumo" style="display:none;"></div>
+                    <div class="table-container" style="max-height:52vh;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th class="align-center" style="width:90px;">Conciliado</th>
+                                    <th class="align-center">Data</th>
+                                    <th>Descrição</th>
+                                    <th class="align-right">Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody id="concCorpo">
+                                <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;">Selecione uma conta.</td></tr>
                             </tbody>
                         </table>
                     </div>

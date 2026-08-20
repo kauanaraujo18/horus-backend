@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.horus.projeto.enums.OrigemLancamento;
 import com.horus.projeto.enums.TipoMovimento;
 import jakarta.persistence.*;
+import org.hibernate.annotations.ColumnDefault;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -68,6 +69,7 @@ public class LancamentoFinanceiroEntity {
     private Boolean estornado = false;
 
     /** Conciliação bancária (marcação manual). */
+    @ColumnDefault("false")
     @Column(nullable = false)
     private Boolean conciliado = false;
 
@@ -85,5 +87,6 @@ public class LancamentoFinanceiroEntity {
     public void prePersist() {
         this.dataRegistro = LocalDateTime.now();
         if (this.estornado == null) this.estornado = false;
+        if (this.conciliado == null) this.conciliado = false;
     }
 }

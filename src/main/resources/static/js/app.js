@@ -255,18 +255,14 @@ function makeDraggable(win) {
    MÓDULO 3: UTILITÁRIOS E FORMATAÇÃO
    ========================================================================== */
 function setupFormatters() {
-    // Input EAN Generator
+    // Código EAN opcional: o ícone gera um EAN-13 sob demanda; o campo fica livre.
     const inputCodigo = document.getElementById('produtoCodigo');
-    if (inputCodigo) {
-        inputCodigo.addEventListener('click', function() {
-            if (this.hasAttribute('readonly')) {
-                this.removeAttribute('readonly');
-                this.focus();
-            } else if (!this.value) {
-                this.value = gerarEAN13();
-            }
+    const btnGerarEan = document.getElementById('btnGerarEan');
+    if (btnGerarEan && inputCodigo) {
+        btnGerarEan.addEventListener('click', function() {
+            inputCodigo.value = gerarEAN13();
+            inputCodigo.focus();
         });
-        inputCodigo.addEventListener('blur', function() { this.setAttribute('readonly', 'true'); });
     }
 
     // Bind Máscaras de Moeda (PDV e Cadastro)
@@ -3161,13 +3157,14 @@ function setupFinanceiroModule() {
     document.getElementById('btnVoltarFinanceiro')?.addEventListener('click', () => finNavegar('menu'));
     document.getElementById('btnContasFin')?.addEventListener('click', () => finNavegar('contas'));
     document.getElementById('btnTransferencias')?.addEventListener('click', () => finNavegar('transferencias'));
+    document.getElementById('btnConciliacao')?.addEventListener('click', () => finNavegar('conciliacao'));
     document.getElementById('btnPlanoContas')?.addEventListener('click', () => finNavegar('plano'));
     document.getElementById('btnDfc')?.addEventListener('click', () => finNavegar('dfc'));
     document.getElementById('classeTipo')?.addEventListener('change', () => finPopularSelectPai());
 }
 
 function finNavegar(tela) {
-    ['finViewMenu', 'finViewContas', 'finViewTransferencias', 'finViewPlano', 'finViewDfc'].forEach(id => {
+    ['finViewMenu', 'finViewContas', 'finViewTransferencias', 'finViewConciliacao', 'finViewPlano', 'finViewDfc'].forEach(id => {
         const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
     const titulo = document.getElementById('tituloJanelaFinanceiro');
@@ -3182,6 +3179,11 @@ function finNavegar(tela) {
         titulo.innerText = 'Financeiro › Transferências';
         btnVoltar.style.display = 'flex';
         finCarregarTransferencias();
+    } else if (tela === 'conciliacao') {
+        document.getElementById('finViewConciliacao').style.display = 'block';
+        titulo.innerText = 'Financeiro › Conciliação Bancária';
+        btnVoltar.style.display = 'flex';
+        finPrepararConciliacao();
     } else if (tela === 'plano') {
         document.getElementById('finViewPlano').style.display = 'block';
         titulo.innerText = 'Financeiro › Plano de Contas';
@@ -3744,6 +3746,73 @@ async function finEstornarTransf(id) {
         const body = await res.json().catch(() => ({}));
         if (res.ok) { mostrarToast('Transferência estornada.', 'success'); finCarregarTransferencias(); }
         else mostrarToast(body.erro || 'Erro ao estornar.', 'error');
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
+/* ── Conciliação bancária ───────────────────────────────────────────── */
+async function finPrepararConciliacao() {
+    await carregarContasFin();
+    const sel = document.getElementById('concConta');
+    const ativas = (finContasCache || []).filter(c => c.ativo);
+    sel.innerHTML = '<option value="">-- Selecione uma conta --</option>' +
+        ativas.map(c => `<option value="${c.codConta}">${finEsc(c.nome)} (${c.tipoConta === 'CAIXA' ? 'Caixa' : 'Banco'})</option>`).join('');
+    if (finParametrosCache?.codContaBancoPadrao) sel.value = String(finParametrosCache.codContaBancoPadrao);
+    document.getElementById('concResumo').style.display = 'none';
+    if (sel.value) finGerarConciliacao();
+    else document.getElementById('concCorpo').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;">Selecione uma conta.</td></tr>';
+}
+
+async function finGerarConciliacao() {
+    const codConta = document.getElementById('concConta').value;
+    const corpo = document.getElementById('concCorpo');
+    if (!codConta) {
+        corpo.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;">Selecione uma conta.</td></tr>';
+        document.getElementById('concResumo').style.display = 'none';
+        return;
+    }
+    corpo.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;"><i class="ph ph-spinner ph-spin"></i> Carregando...</td></tr>';
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/conciliacao/${codConta}`, { headers: getAuthHeader() });
+        const body = await res.json();
+        if (!res.ok) { corpo.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--danger);padding:24px;">${body.erro || 'Erro.'}</td></tr>`; return; }
+        finRenderConciliacao(body);
+    } catch (e) {
+        corpo.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--danger);padding:24px;">Erro de conexão.</td></tr>';
+    }
+}
+
+function finRenderConciliacao(dto) {
+    const dif = Number(dto.diferenca) || 0;
+    const resumo = document.getElementById('concResumo');
+    resumo.style.display = 'flex';
+    resumo.innerHTML = `
+        <div class="conc-box"><div class="lbl">Saldo do sistema</div><div class="val">${finMoeda(dto.saldoSistema)}</div></div>
+        <div class="conc-box ok"><div class="lbl">Saldo conciliado</div><div class="val">${finMoeda(dto.saldoConciliado)}</div></div>
+        <div class="conc-box dif"><div class="lbl">Diferença (a conciliar)</div><div class="val ${dif === 0 ? 'zerada' : 'aberta'}">${finMoeda(dif)}</div></div>`;
+
+    const corpo = document.getElementById('concCorpo');
+    if (!dto.movimentos || dto.movimentos.length === 0) {
+        corpo.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum movimento nesta conta.</td></tr>';
+        return;
+    }
+    corpo.innerHTML = dto.movimentos.map(m => {
+        const dt = m.data ? new Date(m.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+        const val = Number(m.valor) || 0;
+        return `<tr>
+            <td class="align-center"><input type="checkbox" class="conc-check" ${m.conciliado ? 'checked' : ''} onchange="finToggleConciliado('${m.tipo}', ${m.id}, this.checked)"></td>
+            <td class="align-center">${dt}</td>
+            <td style="font-size:12.5px;">${finEsc(m.descricao || '—')}</td>
+            <td class="align-right" style="font-weight:600;color:${val >= 0 ? 'var(--success)' : 'var(--danger)'};">${finMoeda(val)}</td>
+        </tr>`;
+    }).join('');
+}
+
+async function finToggleConciliado(tipo, id, conciliado) {
+    const rota = tipo === 'TRANSFERENCIA' ? 'transferencia' : 'lancamento';
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/conciliacao/${rota}/${id}?conciliado=${conciliado}`, { method: 'PATCH', headers: getAuthHeader() });
+        if (!res.ok) { const b = await res.json().catch(() => ({})); mostrarToast(b.erro || 'Erro ao conciliar.', 'error'); }
+        finGerarConciliacao(); // atualiza saldos
     } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
 }
 

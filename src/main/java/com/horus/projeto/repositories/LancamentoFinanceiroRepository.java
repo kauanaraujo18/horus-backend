@@ -76,6 +76,10 @@ public interface LancamentoFinanceiroRepository extends JpaRepository<Lancamento
     /** Guarda de exclusão da conta: existe movimentação nela? */
     boolean existsByCodContaFinanceira(Long codContaFinanceira);
 
+    /** Lançamentos ativos de uma conta (para a tela de conciliação). */
+    List<LancamentoFinanceiroEntity> findByEmpresaIdAndCodContaFinanceiraAndEstornadoFalseOrderByDataMovimentoAsc(
+            Long empresaId, Long codContaFinanceira);
+
     /** Lançamentos ativos gerados por uma origem específica (para estorno em cascata). */
     List<LancamentoFinanceiroEntity> findByOrigemIdAndEstornadoFalse(Long origemId);
 

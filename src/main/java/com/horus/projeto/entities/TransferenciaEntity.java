@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -49,6 +50,14 @@ public class TransferenciaEntity {
     @Column(nullable = false)
     private Boolean estornado = false;
 
+    /** Conciliação bancária (marcação manual). */
+    @ColumnDefault("false")
+    @Column(nullable = false)
+    private Boolean conciliado = false;
+
+    @Column(name = "data_conciliacao")
+    private LocalDate dataConciliacao;
+
     @Column(name = "data_registro", updatable = false)
     private LocalDateTime dataRegistro;
 
@@ -56,5 +65,6 @@ public class TransferenciaEntity {
     public void prePersist() {
         this.dataRegistro = LocalDateTime.now();
         if (this.estornado == null) this.estornado = false;
+        if (this.conciliado == null) this.conciliado = false;
     }
 }
