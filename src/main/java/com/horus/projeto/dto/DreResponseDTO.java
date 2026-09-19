@@ -59,4 +59,20 @@ public class DreResponseDTO {
     private int produtosSemCusto;
     /** Parte da receita do período que veio de produtos sem base de custo. */
     private BigDecimal receitaSemCusto = BigDecimal.ZERO;
+
+    // ── Ponte compra → CMV ──────────────────────────────────────────────────
+    /**
+     * Estoque valorizado HOJE (Σ quantidade × custo médio).
+     * É a resposta para "comprei em março e vendi em maio, cadê o custo de março?":
+     * ele não sumiu, está aqui. Compra não é resultado — é troca de dinheiro por
+     * estoque. Vira resultado (CMV) só quando o item é vendido.
+     * Posição atual, não histórica: não há foto de estoque por data ainda.
+     */
+    private BigDecimal estoqueValorizado = BigDecimal.ZERO;
+
+    // ── Alerta de contagem dupla ────────────────────────────────────────────
+    /** Compras com itens (entraram em estoque) classificadas como DESPESA. */
+    private long comprasEmDespesa;
+    /** Valor pago no período nessas compras — está contado duas vezes no resultado. */
+    private BigDecimal valorComprasEmDespesa = BigDecimal.ZERO;
 }

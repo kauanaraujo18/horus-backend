@@ -2,6 +2,7 @@ package com.horus.projeto.services;
 
 import com.horus.projeto.entities.*;
 import com.horus.projeto.enums.OrigemCusto;
+import com.horus.projeto.enums.OrigemEntradaEstoque;
 import com.horus.projeto.repositories.*;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -36,6 +37,7 @@ public class CusteioService {
     private static final int ESCALA_CUSTO = 4;
 
     private final CustoVendaRepository custoVendaRepository;
+    private final ProdutoCustoHistoricoRepository historicoRepository;
     private final ProdutoRepository produtoRepository;
     private final ProdutoMateriaPrimaRepository materiaPrimaRepository;
     private final VendaRepository vendaRepository;
@@ -71,9 +73,12 @@ public class CusteioService {
     }
 
     /**
-     * Resolvedor de custo unitário com memória. Regra:
-     *  - produto COM composição  -> soma recursiva (custo do insumo × quantidade)
-     *  - produto SEM composição  -> valor_custo cadastrado (0 se ausente)
+     * Resolvedor de custo unitário com memória. Cascata de resolução:
+     *  1. custo_medio  -> custo médio ponderado móvel (autoritativo: é o custo real
+     *                     do que está em estoque, acumulado pelas entradas)
+     *  2. composição   -> soma recursiva (custo do insumo × quantidade); estimativa
+     *                     para produto que ainda não foi produzido nenhuma vez
+     *  3. valor_custo  -> custo informado manualmente (0 se ausente)
      * O Set de visitados (clonado por ramo) impede loop em composição circular.
      */
     public static final class TabelaCustos {
@@ -96,6 +101,15 @@ public class CusteioService {
             return !composicoes.getOrDefault(codProduto, List.of()).isEmpty();
         }
 
+        /** De onde veio o custo deste produto — grava no CMV para auditoria. */
+        public OrigemCusto origemDoCusto(Long codProduto) {
+            if (custoUnitario(codProduto).signum() <= 0) return OrigemCusto.SEM_CUSTO;
+            ProdutoEntity produto = produtos.get(codProduto);
+            if (produto != null && produto.getCustoMedio() != null
+                    && produto.getCustoMedio().signum() > 0) return OrigemCusto.CUSTO_MEDIO;
+            return possuiComposicao(codProduto) ? OrigemCusto.COMPOSICAO : OrigemCusto.CADASTRO;
+        }
+
         public ProdutoEntity produto(Long codProduto) {
             return produtos.get(codProduto);
         }
@@ -112,17 +126,25 @@ public class CusteioService {
             ProdutoEntity produto = produtos.get(codProduto);
             if (produto == null) return BigDecimal.ZERO.setScale(ESCALA_CUSTO);
 
-            List<ProdutoMateriaPrimaEntity> comps = composicoes.getOrDefault(codProduto, List.of());
             BigDecimal custo;
-            if (comps.isEmpty()) {
-                custo = produto.getValorCusto() != null ? produto.getValorCusto() : BigDecimal.ZERO;
+            BigDecimal medio = produto.getCustoMedio();
+            if (medio != null && medio.signum() > 0) {
+                // (1) custo médio ponderado: o custo real do que está em estoque
+                custo = medio;
             } else {
-                custo = BigDecimal.ZERO;
-                for (ProdutoMateriaPrimaEntity comp : comps) {
-                    BigDecimal qtd = comp.getQuantidade() != null ? comp.getQuantidade() : BigDecimal.ONE;
-                    BigDecimal custoInsumo = resolver(comp.getId().getCodProdutoMateriaPrima(),
-                            new HashSet<>(visitados));
-                    custo = custo.add(custoInsumo.multiply(qtd));
+                List<ProdutoMateriaPrimaEntity> comps = composicoes.getOrDefault(codProduto, List.of());
+                if (comps.isEmpty()) {
+                    // (3) custo informado manualmente
+                    custo = produto.getValorCusto() != null ? produto.getValorCusto() : BigDecimal.ZERO;
+                } else {
+                    // (2) estimativa pela composição — produto ainda não produzido
+                    custo = BigDecimal.ZERO;
+                    for (ProdutoMateriaPrimaEntity comp : comps) {
+                        BigDecimal qtd = comp.getQuantidade() != null ? comp.getQuantidade() : BigDecimal.ONE;
+                        BigDecimal custoInsumo = resolver(comp.getId().getCodProdutoMateriaPrima(),
+                                new HashSet<>(visitados));
+                        custo = custo.add(custoInsumo.multiply(qtd));
+                    }
                 }
             }
             if (custo.signum() < 0) custo = BigDecimal.ZERO;
@@ -130,6 +152,130 @@ public class CusteioService {
             memo.put(codProduto, custo);
             return custo;
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // CUSTO MÉDIO PONDERADO MÓVEL
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Registra uma ENTRADA de estoque e recalcula o custo médio ponderado móvel.
+     *
+     *   custoNovo = (qtdAnterior × custoAnterior + qtdEntrada × custoEntrada)
+     *               ÷ (qtdAnterior + qtdEntrada)
+     *
+     * Este método é o ÚNICO lugar do sistema que incrementa estoque — ele soma a
+     * quantidade E atualiza o custo na mesma operação. Chamar `setQuantidadeEstoque`
+     * direto para dar entrada deixa o custo desatualizado silenciosamente.
+     *
+     * Saídas (venda, consumo em produção) continuam decrementando direto: saída não
+     * altera custo médio, só quantidade. Essa assimetria é a própria definição do método.
+     *
+     * Bootstrap: quando não há estoque anterior (qtd ≤ 0) ou não há custo anterior
+     * (custo ≤ 0), o custo da entrada passa a valer para o todo. Sem isso, um produto
+     * com estoque histórico e custo zero diluiria a primeira compra pela metade.
+     *
+     * @return o produto já salvo, com estoque e custo atualizados
+     */
+    @Transactional
+    public ProdutoEntity registrarEntrada(ProdutoEntity produto, Long empresaId,
+                                          BigDecimal quantidade, BigDecimal custoUnitarioEntrada,
+                                          OrigemEntradaEstoque origem, Long origemId,
+                                          LocalDate data, String descricao) {
+        if (produto == null) return null;
+        if (quantidade == null || quantidade.signum() <= 0) return produto;
+
+        BigDecimal qtdAnterior = produto.getQuantidadeEstoque() != null
+                ? new BigDecimal(produto.getQuantidadeEstoque()) : BigDecimal.ZERO;
+        BigDecimal custoAnterior = produto.getCustoMedio() != null
+                ? produto.getCustoMedio() : BigDecimal.ZERO;
+        BigDecimal custoEntrada = custoUnitarioEntrada != null && custoUnitarioEntrada.signum() > 0
+                ? custoUnitarioEntrada : BigDecimal.ZERO;
+
+        BigDecimal qtdNova = qtdAnterior.add(quantidade);
+
+        BigDecimal custoNovo;
+        if (qtdAnterior.signum() <= 0 || custoAnterior.signum() <= 0) {
+            custoNovo = custoEntrada;
+        } else {
+            BigDecimal valorAnterior = qtdAnterior.multiply(custoAnterior);
+            BigDecimal valorEntrada = quantidade.multiply(custoEntrada);
+            custoNovo = valorAnterior.add(valorEntrada)
+                    .divide(qtdNova, ESCALA_CUSTO, RoundingMode.HALF_UP);
+        }
+        custoNovo = custoNovo.setScale(ESCALA_CUSTO, RoundingMode.HALF_UP);
+
+        produto.setQuantidadeEstoque(qtdNova.intValue());
+        produto.setCustoMedio(custoNovo);
+        ProdutoEntity salvo = produtoRepository.save(produto);
+
+        ProdutoCustoHistoricoEntity h = new ProdutoCustoHistoricoEntity();
+        h.setEmpresa(empresaRepository.getReferenceById(empresaId));
+        h.setCodProduto(produto.getCodProduto());
+        h.setQuantidadeAnterior(esc(qtdAnterior));
+        h.setCustoAnterior(esc(custoAnterior));
+        h.setQuantidadeEntrada(esc(quantidade));
+        h.setCustoEntrada(esc(custoEntrada));
+        h.setQuantidadeNova(esc(qtdNova));
+        h.setCustoNovo(esc(custoNovo));
+        h.setOrigem(origem);
+        h.setOrigemId(origemId);
+        h.setDescricao(descricao);
+        h.setDataMovimento(data != null ? data : LocalDate.now());
+        historicoRepository.save(h);
+
+        return salvo;
+    }
+
+    /**
+     * Define o custo médio manualmente (usuário digitou o Valor de Custo no cadastro).
+     * Não mexe no estoque — apenas reavalia o custo e deixa rastro no histórico.
+     */
+    @Transactional
+    public void definirCustoManual(ProdutoEntity produto, Long empresaId, BigDecimal novoCusto) {
+        if (produto == null || novoCusto == null || novoCusto.signum() < 0) return;
+        BigDecimal custoAnterior = produto.getCustoMedio() != null ? produto.getCustoMedio() : BigDecimal.ZERO;
+        BigDecimal alvo = novoCusto.setScale(ESCALA_CUSTO, RoundingMode.HALF_UP);
+        if (custoAnterior.compareTo(alvo) == 0) return;
+
+        BigDecimal qtd = produto.getQuantidadeEstoque() != null
+                ? new BigDecimal(produto.getQuantidadeEstoque()) : BigDecimal.ZERO;
+        produto.setCustoMedio(alvo);
+
+        ProdutoCustoHistoricoEntity h = new ProdutoCustoHistoricoEntity();
+        h.setEmpresa(empresaRepository.getReferenceById(empresaId));
+        h.setCodProduto(produto.getCodProduto());
+        h.setQuantidadeAnterior(esc(qtd));
+        h.setCustoAnterior(esc(custoAnterior));
+        h.setQuantidadeEntrada(BigDecimal.ZERO.setScale(ESCALA_CUSTO));
+        h.setCustoEntrada(alvo);
+        h.setQuantidadeNova(esc(qtd));
+        h.setCustoNovo(alvo);
+        h.setOrigem(OrigemEntradaEstoque.AJUSTE_MANUAL);
+        h.setDescricao("Custo informado manualmente no cadastro do produto");
+        h.setDataMovimento(LocalDate.now());
+        historicoRepository.save(h);
+    }
+
+    /** Trilha de auditoria do custo de um produto (mais recente primeiro). */
+    public List<ProdutoCustoHistoricoEntity> historicoCusto(Long empresaId, Long codProduto) {
+        return historicoRepository.findByEmpresaIdAndCodProdutoOrderByCodHistoricoDesc(empresaId, codProduto);
+    }
+
+    /**
+     * Custo unitário com que cada produto SAIU numa venda (snapshot do CMV).
+     * Usado no estorno: o item tem que voltar ao estoque pelo custo com que saiu,
+     * senão o estorno contamina o custo médio com um valor inventado.
+     */
+    public Map<Long, BigDecimal> custosDaVenda(Long codVenda) {
+        Map<Long, BigDecimal> mapa = new HashMap<>();
+        for (CustoVendaEntity linha : custoVendaRepository.findByCodVendaAndEstornadoFalse(codVenda))
+            mapa.putIfAbsent(linha.getCodProduto(), linha.getCustoUnitario());
+        return mapa;
+    }
+
+    private static BigDecimal esc(BigDecimal v) {
+        return (v != null ? v : BigDecimal.ZERO).setScale(ESCALA_CUSTO, RoundingMode.HALF_UP);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -193,18 +339,13 @@ public class CusteioService {
             custo.setCustoUnitario(unitario);
             custo.setCustoTotal(total);
             custo.setDataMovimento(dataCompetencia);
-            custo.setOrigemCusto(classificarOrigem(unitario, tabela.possuiComposicao(codProduto)));
+            custo.setOrigemCusto(tabela.origemDoCusto(codProduto));
             custo.setEstornado(false);
 
             custoVendaRepository.save(custo);
             gravadas++;
         }
         return gravadas;
-    }
-
-    private OrigemCusto classificarOrigem(BigDecimal unitario, boolean possuiComposicao) {
-        if (unitario == null || unitario.signum() <= 0) return OrigemCusto.SEM_CUSTO;
-        return possuiComposicao ? OrigemCusto.COMPOSICAO : OrigemCusto.CADASTRO;
     }
 
     /** Estorna o CMV de uma venda estornada (mesma semântica append-only do razão). */

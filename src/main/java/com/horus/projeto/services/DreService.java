@@ -5,6 +5,8 @@ import com.horus.projeto.dto.DreResponseDTO;
 import com.horus.projeto.entities.ClasseFinanceiraEntity;
 import com.horus.projeto.enums.TipoClasse;
 import com.horus.projeto.repositories.ClasseFinanceiraRepository;
+import com.horus.projeto.repositories.ContaPagarRepository;
+import com.horus.projeto.repositories.ProdutoRepository;
 import com.horus.projeto.repositories.CustoVendaRepository;
 import com.horus.projeto.repositories.LancamentoFinanceiroRepository;
 import com.horus.projeto.repositories.ProdutoVendaRepository;
@@ -40,6 +42,8 @@ public class DreService {
     private final CustoVendaRepository custoVendaRepository;
     private final LancamentoFinanceiroRepository lancamentoRepository;
     private final ClasseFinanceiraRepository classeRepository;
+    private final ContaPagarRepository contaPagarRepository;
+    private final ProdutoRepository produtoRepository;
 
     public DreResponseDTO gerar(Long empresaId, LocalDate inicio, LocalDate fim) {
         if (inicio == null || fim == null)
@@ -96,6 +100,20 @@ public class DreService {
         }
         dre.setDespesasOperacionais(esc2(despesas));
 
+        // Guarda de contagem dupla: mercadoria que entrou em estoque mas foi
+        // classificada como DESPESA entra no resultado duas vezes (aqui e no CMV).
+        List<Long> classesDespesa = tipoPorClasse.entrySet().stream()
+                .filter(e -> e.getValue() == TipoClasse.DESPESA)
+                .map(Map.Entry::getKey).toList();
+        if (!classesDespesa.isEmpty()) {
+            List<Object[]> conflito = contaPagarRepository
+                    .comprasClassificadasComoDespesa(empresaId, inicio, fim, classesDespesa);
+            if (!conflito.isEmpty() && conflito.get(0) != null && conflito.get(0)[0] != null) {
+                dre.setComprasEmDespesa(((Number) conflito.get(0)[0]).longValue());
+                dre.setValorComprasEmDespesa(esc2((BigDecimal) conflito.get(0)[1]));
+            }
+        }
+
         BigDecimal resultado = lucroBruto.subtract(despesas);
         dre.setResultadoOperacional(esc2(resultado));
         dre.setMargemOperacional(percentual(resultado, receitaLiquida));
@@ -106,7 +124,10 @@ public class DreService {
         // ── (4) Margem por produto ────────────────────────────────────────────
         dre.setProdutos(montarProdutos(empresaId, ini, end, inicio, fim, dre));
 
-        // ── (5) Confiabilidade ────────────────────────────────────────────────
+        // ── (5) Estoque valorizado — a ponte entre a compra e o CMV ───────────
+        dre.setEstoqueValorizado(esc2(produtoRepository.valorEstoque(empresaId)));
+
+        // ── (6) Confiabilidade ────────────────────────────────────────────────
         dre.setVendasSemCmv(vendaRepository.contarSemCmvNoPeriodo(empresaId, ini, end));
 
         return dre;

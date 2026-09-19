@@ -40,6 +40,20 @@ public interface ProdutoRepository extends JpaRepository<ProdutoEntity, Long> {
 
     List<ProdutoEntity> findByTipoAndEmpresaId(TipoProduto tipo, Long empresaId);
 
+    /**
+     * Estoque valorizado: a ponte entre a COMPRA (dinheiro que saiu) e o CMV
+     * (custo que virou resultado). O que foi comprado e ainda não foi vendido
+     * está aqui — não é prejuízo, é valor parado.
+     */
+    @Query("""
+           SELECT COALESCE(SUM(p.quantidadeEstoque * p.custoMedio), 0)
+           FROM ProdutoEntity p
+           WHERE p.empresa.id = :empresaId
+             AND p.custoMedio IS NOT NULL
+             AND p.quantidadeEstoque > 0
+           """)
+    java.math.BigDecimal valorEstoque(@Param("empresaId") Long empresaId);
+
     @Query("SELECT p FROM ProdutoEntity p WHERE p.empresa.id = :empresaId AND p.tipo IN :tipos")
     List<ProdutoEntity> findByTiposAndEmpresaId(@Param("tipos") List<TipoProduto> tipos, @Param("empresaId") Long empresaId);
 }

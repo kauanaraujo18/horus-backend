@@ -217,14 +217,26 @@ public class VendaService {
         if (Boolean.TRUE.equals(venda.getEstornada()))
             throw new RuntimeException("Esta venda já foi estornada.");
 
-        // 1) Devolve o estoque de cada item
+        // 0) Custo com que cada item SAIU (snapshot do CMV) — lido antes do estorno,
+        //    que é o que marca as linhas como estornadas e as esconde da consulta.
+        java.util.Map<Long, java.math.BigDecimal> custosOriginais =
+                custeioService.custosDaVenda(codVenda);
+
+        // 1) Devolve o estoque de cada item pelo custo original.
+        //    Devolver pelo custo de hoje faria o estorno mexer no custo médio —
+        //    um cancelamento não pode reprecificar o estoque.
         for (ProdutoVendaEntity item : venda.getItens()) {
             ProdutoEntity produto = item.getProduto();
             if (produto == null) continue;
-            int atual = produto.getQuantidadeEstoque() != null ? produto.getQuantidadeEstoque() : 0;
             int qtd = item.getQuantidade() != null ? item.getQuantidade() : 0;
-            produto.setQuantidadeEstoque(atual + qtd);
-            produtoRepository.save(produto);
+            if (qtd <= 0) continue;
+
+            java.math.BigDecimal custoOriginal = custosOriginais.get(produto.getCodProduto());
+            if (custoOriginal == null) custoOriginal = produto.getCustoMedio(); // venda anterior ao CMV
+
+            custeioService.registrarEntrada(produto, empresaId, new java.math.BigDecimal(qtd),
+                    custoOriginal, com.horus.projeto.enums.OrigemEntradaEstoque.ESTORNO_VENDA,
+                    codVenda, java.time.LocalDate.now(), "Estorno da venda #" + codVenda);
         }
 
         // 2) Estorna os lançamentos financeiros (entradas) desta venda

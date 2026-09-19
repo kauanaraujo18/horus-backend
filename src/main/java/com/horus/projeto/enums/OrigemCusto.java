@@ -6,6 +6,8 @@ package com.horus.projeto.enums;
  * se aquele custo era confiável ou se o produto estava sem custo cadastrado.
  */
 public enum OrigemCusto {
+    /** Custo médio ponderado móvel, acumulado pelas entradas reais de estoque. */
+    CUSTO_MEDIO,
     /** Custo veio do campo valor_custo do próprio produto (sem composição). */
     CADASTRO,
     /** Custo apurado pela explosão recursiva da composição (BOM). */

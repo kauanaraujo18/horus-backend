@@ -3,6 +3,7 @@ package com.horus.projeto.services;
 import com.horus.projeto.dto.ProducaoCalculoDTO;
 import com.horus.projeto.dto.ProducaoCalculoDTO.InsumoNecessarioDTO;
 import com.horus.projeto.entities.*;
+import com.horus.projeto.enums.OrigemEntradaEstoque;
 import com.horus.projeto.enums.TipoProduto;
 import com.horus.projeto.repositories.EmpresaRepository;
 import com.horus.projeto.repositories.ProdutoMateriaPrimaRepository;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.*;
 
 /**
@@ -34,6 +37,7 @@ public class ProducaoService {
     private final ProdutoRepository produtoRepository;
     private final ProdutoMateriaPrimaRepository materiaPrimaRepository;
     private final EmpresaRepository empresaRepository;
+    private final CusteioService custeioService;
 
     // ═══════════════════════════════════════════════════════════════════════
     // CONSULTA
@@ -128,34 +132,53 @@ public class ProducaoService {
             insumosCachados.add(insumo);
         }
 
-        // ── Passa 2: debita insumos e constrói snapshot ──
+        // ── Passa 2: debita insumos, constrói snapshot e acumula o custo real ──
         ProducaoEntity producao = new ProducaoEntity();
         producao.setProduto(produto);
         producao.setQuantidadeProduzida(quantidade);
         producao.setEmpresa(empresaRepository.getReferenceById(empresaId));
+
+        // Tabela de custos lida ANTES de qualquer baixa — é o custo vigente do insumo.
+        CusteioService.TabelaCustos tabela = custeioService.carregarTabela(empresaId);
+        BigDecimal custoTotalProducao = BigDecimal.ZERO;
 
         int i = 0;
         for (Map.Entry<Long, BigDecimal> entry : mpNecessarios.entrySet()) {
             ProdutoEntity insumo = insumosCachados.get(i++);
             BigDecimal necessaria = entry.getValue();
 
+            // Consumo é SAÍDA: reduz quantidade e não altera o custo médio do insumo.
             insumo.setQuantidadeEstoque(
                     insumo.getQuantidadeEstoque() - necessaria.intValue());
             produtoRepository.save(insumo);
+
+            BigDecimal custoInsumo = tabela.custoUnitario(insumo.getCodProduto());
+            custoTotalProducao = custoTotalProducao.add(custoInsumo.multiply(necessaria));
 
             ProducaoItemEntity itemConsumido = new ProducaoItemEntity();
             itemConsumido.setProducao(producao);
             itemConsumido.setInsumo(insumo);
             itemConsumido.setQuantidadeConsumida(necessaria);
+            itemConsumido.setCustoUnitario(custoInsumo);
             producao.getItensConsumidos().add(itemConsumido);
         }
 
-        // ── Credita o PF/MPPF produzido ──
-        int estoqueAtual = produto.getQuantidadeEstoque() != null ? produto.getQuantidadeEstoque() : 0;
-        produto.setQuantidadeEstoque(estoqueAtual + quantidade);
-        produtoRepository.save(produto);
+        custoTotalProducao = custoTotalProducao.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal custoUnitarioProduzido = custoTotalProducao
+                .divide(new BigDecimal(quantidade), 4, RoundingMode.HALF_UP);
+        producao.setCustoTotal(custoTotalProducao);
+        producao.setCustoUnitario(custoUnitarioProduzido);
 
-        return producaoRepository.save(producao);
+        ProducaoEntity salva = producaoRepository.save(producao);
+
+        // ── Credita o PF/MPPF produzido pelo custo real do que foi consumido ──
+        // É aqui que a produção deixa de ser só movimento de quantidade e passa a
+        // transportar valor: o custo dos insumos vira o custo do produto acabado.
+        custeioService.registrarEntrada(produto, empresaId, new BigDecimal(quantidade),
+                custoUnitarioProduzido, OrigemEntradaEstoque.PRODUCAO, salva.getCodProducao(),
+                LocalDate.now(), "Produção #" + salva.getCodProducao() + " - " + produto.getNome());
+
+        return salva;
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -169,15 +192,21 @@ public class ProducaoService {
         if (Boolean.TRUE.equals(producao.getEstornada()))
             throw new IllegalArgumentException("Esta produção já foi estornada anteriormente.");
 
-        // Devolve insumos aos estoques de MP
+        // Devolve insumos aos estoques de MP — ENTRADA pelo custo com que saíram.
+        // Usar o custo de hoje aqui contaminaria o custo médio do insumo com um
+        // valor que nunca foi pago; por isso o snapshot em producao_item.
         for (ProducaoItemEntity item : producao.getItensConsumidos()) {
             ProdutoEntity insumo = item.getInsumo();
-            int atual = insumo.getQuantidadeEstoque() != null ? insumo.getQuantidadeEstoque() : 0;
-            insumo.setQuantidadeEstoque(atual + item.getQuantidadeConsumida().intValue());
-            produtoRepository.save(insumo);
+            BigDecimal devolvida = new BigDecimal(item.getQuantidadeConsumida().intValue());
+            BigDecimal custoSnapshot = item.getCustoUnitario() != null
+                    ? item.getCustoUnitario()
+                    : (insumo.getCustoMedio() != null ? insumo.getCustoMedio() : BigDecimal.ZERO);
+            custeioService.registrarEntrada(insumo, empresaId, devolvida, custoSnapshot,
+                    OrigemEntradaEstoque.ESTORNO_PRODUCAO, producao.getCodProducao(),
+                    LocalDate.now(), "Estorno da produção #" + producao.getCodProducao());
         }
 
-        // Retira do estoque do produto produzido
+        // Retira do estoque do produto produzido — SAÍDA, não altera custo médio
         ProdutoEntity produto = producao.getProduto();
         int estoqueAtual = produto.getQuantidadeEstoque() != null ? produto.getQuantidadeEstoque() : 0;
         int novoEstoque  = estoqueAtual - producao.getQuantidadeProduzida();

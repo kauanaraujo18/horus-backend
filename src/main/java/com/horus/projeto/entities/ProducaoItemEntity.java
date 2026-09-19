@@ -37,4 +37,12 @@ public class ProducaoItemEntity {
     /** Quantidade do insumo efetivamente consumida. */
     @Column(name = "quantidade_consumida", nullable = false)
     private BigDecimal quantidadeConsumida;
+
+    /**
+     * Custo unitário do insumo no momento do consumo (snapshot).
+     * É o que permite o estorno devolver o insumo ao estoque pelo custo com que
+     * saiu — devolver pelo custo de hoje contaminaria o custo médio.
+     */
+    @Column(name = "custo_unitario", precision = 15, scale = 4)
+    private BigDecimal custoUnitario;
 }

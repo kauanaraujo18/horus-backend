@@ -185,8 +185,20 @@
                             </div>
 
                             <div class="input-group col-span-1">
-                                <label for="produtoValorCusto">Valor de Custo</label>
+                                <label for="produtoValorCusto">Valor de Custo <span style="color:var(--text-muted);font-weight:400;text-transform:none;">— informado</span></label>
                                 <input type="text" id="produtoValorCusto" placeholder="R$ 0,00">
+                            </div>
+
+                            <div class="input-group col-span-1">
+                                <label for="produtoCustoMedio">
+                                    Custo Médio <span style="color:var(--text-muted);font-weight:400;text-transform:none;">— calculado</span>
+                                    <i class="ph ph-info" title="Custo médio ponderado móvel: recalculado a cada compra, produção ou estorno. É a base usada no CMV e na margem." style="cursor:help;"></i>
+                                </label>
+                                <div class="input-with-action">
+                                    <input type="text" id="produtoCustoMedio" readonly disabled placeholder="—">
+                                    <i class="ph ph-clock-counter-clockwise" id="btnHistoricoCusto"
+                                       title="Ver histórico do custo" style="pointer-events:auto;cursor:pointer;"></i>
+                                </div>
                             </div>
 
                             <div class="input-group col-span-1">
@@ -1143,6 +1155,24 @@
         </div><!-- /financeiroDiv -->
 
     </main>
+
+    <!-- Trilha de auditoria do custo médio ponderado -->
+    <div id="modalHistoricoCusto" class="fin-modal-backdrop">
+        <div class="fin-modal" style="max-width:920px;">
+            <div class="fin-modal-header">
+                <h3>Histórico do Custo — <span id="histCustoProduto"></span></h3>
+                <button class="modal-close-x" onclick="finFecharModal('modalHistoricoCusto')"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="fin-modal-body">
+                <div id="histCustoCorpo" class="scrollable-box" style="max-height:52vh;"></div>
+                <div class="dre-nota">
+                    O custo médio é recalculado a cada <strong>entrada</strong> de estoque —
+                    compra, produção ou estorno. Saídas (venda, consumo em produção) reduzem a
+                    quantidade e não alteram o custo.
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div id="modalPesquisa" class="spotlight-modal" style="display: none;">
         <div class="spotlight-content">

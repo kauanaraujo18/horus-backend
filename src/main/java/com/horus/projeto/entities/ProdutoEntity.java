@@ -39,8 +39,18 @@ public class ProdutoEntity implements Serializable {
     @Column(name = "valor", nullable = false)
     private BigDecimal valor;
 
+    /** Custo informado manualmente (custo de reposição). Semente do custo médio. */
     @Column(name = "valor_custo")
     private BigDecimal valorCusto;
+
+    /**
+     * Custo médio ponderado móvel — recalculado a cada ENTRADA de estoque
+     * (compra, produção, estorno). É a base de custo autoritativa: quando
+     * preenchido, prevalece sobre valorCusto e sobre a explosão da composição.
+     * Saídas (venda, consumo) não alteram este número, apenas a quantidade.
+     */
+    @Column(name = "custo_medio", precision = 15, scale = 4)
+    private BigDecimal custoMedio;
 
     @Column(name = "quantidade_estoque", nullable = false)
     private Integer quantidadeEstoque;

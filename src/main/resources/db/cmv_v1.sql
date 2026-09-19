@@ -23,10 +23,10 @@ CREATE TABLE IF NOT EXISTS custo_venda (
     custo_unitario   NUMERIC(15,4) NOT NULL,          -- congelado no ato da venda
     custo_total      NUMERIC(15,2) NOT NULL,
     data_movimento   DATE          NOT NULL,          -- COMPETÊNCIA = data da venda
-    origem_custo     VARCHAR(12)   NOT NULL,          -- CADASTRO | COMPOSICAO | SEM_CUSTO
+    origem_custo     VARCHAR(12)   NOT NULL,          -- CUSTO_MEDIO | CADASTRO | COMPOSICAO | SEM_CUSTO
     estornado        BOOLEAN       NOT NULL DEFAULT FALSE,
     data_registro    TIMESTAMP     NOT NULL DEFAULT now(),
-    CONSTRAINT chk_custo_origem CHECK (origem_custo IN ('CADASTRO','COMPOSICAO','SEM_CUSTO')),
+    CONSTRAINT chk_custo_origem CHECK (origem_custo IN ('CUSTO_MEDIO','CADASTRO','COMPOSICAO','SEM_CUSTO')),
     CONSTRAINT chk_custo_valor  CHECK (custo_total >= 0 AND custo_unitario >= 0),
     CONSTRAINT chk_custo_qtd    CHECK (quantidade > 0)
 );

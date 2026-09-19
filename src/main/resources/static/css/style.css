@@ -1368,3 +1368,30 @@ button {
     border-radius: var(--radius-sm);
     font-size: 11.5px; line-height: 1.6; color: var(--text-muted);
 }
+
+/* ── Custo médio ponderado no card de produto ────────────────────────── */
+.product-cost-line {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin: -4px 0 10px; font-size: 11px;
+}
+.product-cost-line .cost-label {
+    color: var(--text-muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 9.5px;
+}
+.product-cost-line .cost-label.sem-custo {
+    color: #b45309; display: inline-flex; align-items: center; gap: 4px;
+    text-transform: none; letter-spacing: 0; font-size: 11px; font-weight: 500;
+}
+.product-cost-line .cost-amount {
+    font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+}
+.product-cost-line .cost-amount.medio { color: var(--text-main); }
+.product-cost-line .cost-margin {
+    margin-left: auto; padding: 2px 8px; border-radius: 20px;
+    background: rgba(16,185,129,0.12); color: #059669; font-weight: 700; font-size: 10px;
+}
+.product-cost-line .cost-margin.negativa { background: var(--danger-bg); color: var(--danger); }
+
+/* Campo de custo médio (somente leitura) no formulário de produto */
+#produtoCustoMedio { background: #f6f8fc; color: var(--text-main); font-weight: 600; cursor: not-allowed; }
+.dre-kpi.estoque::after { background: var(--warning); }

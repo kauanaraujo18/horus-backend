@@ -5,6 +5,7 @@ import com.horus.projeto.dto.ContaPagarParcelaDTO;
 import com.horus.projeto.dto.ContaPagarRequestDTO;
 import com.horus.projeto.entities.*;
 import com.horus.projeto.enums.NivelClasse;
+import com.horus.projeto.enums.OrigemEntradaEstoque;
 import com.horus.projeto.enums.OrigemLancamento;
 import com.horus.projeto.enums.TipoClasse;
 import com.horus.projeto.repositories.ClasseFinanceiraRepository;
@@ -30,6 +31,7 @@ public class ContaPagarService {
     private final LancamentoFinanceiroService lancamentoService;
     private final ClasseFinanceiraRepository classeRepo;
     private final com.horus.projeto.repositories.ContaFinanceiraRepository contaFinanceiraRepo;
+    private final CusteioService custeioService;
 
     /* ------------------------------------------------------------------
        CONSULTA
@@ -95,9 +97,13 @@ public class ContaPagarService {
 
                 valorTotal = valorTotal.add(totalItem);
 
-                // Fase 2: entrada em estoque
-                produto.setQuantidadeEstoque(produto.getQuantidadeEstoque() + itemDTO.getQuantidade());
-                produtoRepository.save(produto);
+                // Entrada em estoque + recálculo do custo médio ponderado.
+                // O custo da entrada é o valor unitário da própria nota — é isto que
+                // faz o custo do produto refletir o que foi efetivamente pago por ele.
+                custeioService.registrarEntrada(produto, empresaId,
+                        new BigDecimal(itemDTO.getQuantidade()), valorUnit,
+                        OrigemEntradaEstoque.COMPRA, null, LocalDate.now(),
+                        "Compra: " + conta.getDescricao());
             }
         }
         conta.setValorTotal(valorTotal);
@@ -141,7 +147,11 @@ public class ContaPagarService {
         validarDTO(dto);
         ContaPagarEntity conta = buscarPorId(id, empresaId);
 
-        // Estorna estoque dos itens anteriores
+        // Estorna estoque dos itens anteriores.
+        // Tratado como SAÍDA: retira a quantidade e deixa o custo médio intacto.
+        // Recalcular o custo "para trás" seria impossível de fazer corretamente —
+        // pode ter havido venda entre a compra e esta edição. A correção do custo
+        // vem naturalmente na entrada dos itens novos, logo abaixo.
         for (ContaPagarItemEntity itemAntigo : conta.getItens()) {
             ProdutoEntity produto = itemAntigo.getProduto();
             produto.setQuantidadeEstoque(
@@ -187,8 +197,10 @@ public class ContaPagarService {
                 conta.getItens().add(item);
 
                 valorTotal = valorTotal.add(totalItem);
-                produto.setQuantidadeEstoque(produto.getQuantidadeEstoque() + itemDTO.getQuantidade());
-                produtoRepository.save(produto);
+                custeioService.registrarEntrada(produto, empresaId,
+                        new BigDecimal(itemDTO.getQuantidade()), valorUnit,
+                        OrigemEntradaEstoque.COMPRA, conta.getCodContaPagar(), LocalDate.now(),
+                        "Compra (edição): " + conta.getDescricao());
             }
         }
         conta.setValorTotal(valorTotal);

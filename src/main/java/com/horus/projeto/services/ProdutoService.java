@@ -44,7 +44,11 @@ public class ProdutoService {
             return atualizar(produto.getCodProduto(), produto, empresaId);
         }
 
-        if (produto.getCodigo() != null && !produto.getCodigo().isBlank()
+        // Código em branco vira null: o índice único é parcial (ignora NULL), então
+        // vários produtos sem código convivem — mas duas strings vazias colidiriam.
+        normalizarCodigo(produto);
+
+        if (produto.getCodigo() != null
                 && repository.existsByCodigoAndEmpresaId(produto.getCodigo(), empresaId)) {
             throw new IllegalArgumentException("Erro: Já existe um Produto cadastrado com este Código na sua loja.");
         }
@@ -54,7 +58,24 @@ public class ProdutoService {
         EmpresaEntity empresa = empresaRepository.getReferenceById(empresaId);
         produto.setEmpresa(empresa);
 
-        return repository.save(produto);
+        ProdutoEntity salvo = repository.save(produto);
+
+        // Custo informado no cadastro vira a semente do custo médio — a partir da
+        // primeira compra o valor passa a ser recalculado por ponderação.
+        if (salvo.getValorCusto() != null && salvo.getValorCusto().signum() > 0) {
+            custeioService.definirCustoManual(salvo, empresaId, salvo.getValorCusto());
+            salvo = repository.save(salvo);
+        }
+        return salvo;
+    }
+
+    /** Código (EAN/SKU) é opcional: string vazia é normalizada para null. */
+    private void normalizarCodigo(ProdutoEntity produto) {
+        if (produto.getCodigo() != null && produto.getCodigo().isBlank()) {
+            produto.setCodigo(null);
+        } else if (produto.getCodigo() != null) {
+            produto.setCodigo(produto.getCodigo().trim());
+        }
     }
 
     /** Produto só pode usar classe financeira ANALÍTICA de RECEITA. */
@@ -73,6 +94,8 @@ public class ProdutoService {
     public ProdutoEntity atualizar(Long id, ProdutoEntity produtoAtualizada, Long empresaId) {
         ProdutoEntity produtoExistente = buscarPorId(id, empresaId);
 
+        normalizarCodigo(produtoAtualizada);
+
         boolean codigoMudou = produtoAtualizada.getCodigo() != null
                 && !produtoAtualizada.getCodigo().isBlank()
                 && !produtoAtualizada.getCodigo().equals(produtoExistente.getCodigo());
@@ -85,8 +108,16 @@ public class ProdutoService {
         produtoExistente.setNome(produtoAtualizada.getNome());
         produtoExistente.setValor(produtoAtualizada.getValor());
 
+        // Custo digitado pelo usuário reavalia o custo médio (com rastro no histórico).
+        // O usuário mandando "o custo é X" prevalece; a próxima compra volta a ponderar.
+        boolean custoFoiInformado = produtoAtualizada.getValorCusto() != null
+                && (produtoExistente.getValorCusto() == null
+                    || produtoExistente.getValorCusto().compareTo(produtoAtualizada.getValorCusto()) != 0);
         if (produtoAtualizada.getValorCusto() != null) {
             produtoExistente.setValorCusto(produtoAtualizada.getValorCusto());
+        }
+        if (custoFoiInformado) {
+            custeioService.definirCustoManual(produtoExistente, empresaId, produtoAtualizada.getValorCusto());
         }
         if (produtoAtualizada.getTipo() != null) {
             produtoExistente.setTipo(produtoAtualizada.getTipo());
@@ -117,6 +148,12 @@ public class ProdutoService {
     // =========================================================
     // MÓDULO DE PRODUÇÃO - Matérias-Primas
     // =========================================================
+
+    /** Trilha de auditoria do custo médio: cada entrada que o alterou. */
+    public List<com.horus.projeto.entities.ProdutoCustoHistoricoEntity> historicoCusto(Long produtoId, Long empresaId) {
+        buscarPorId(produtoId, empresaId); // valida a posse pela empresa antes de expor o histórico
+        return custeioService.historicoCusto(empresaId, produtoId);
+    }
 
     public List<ProdutoMateriaPrimaEntity> listarMateriasPrimas(Long produtoId, Long empresaId) {
         ProdutoEntity produto = buscarPorId(produtoId, empresaId);
@@ -243,6 +280,7 @@ public class ProdutoService {
             linha.put("margem", margem);
             linha.put("possuiComposicao", tabela.possuiComposicao(p.getCodProduto()));
             linha.put("semBaseCusto", custo.signum() <= 0);
+            linha.put("origemCusto", tabela.origemDoCusto(p.getCodProduto()).name());
             return linha;
         })
         .sorted((a, b) -> ((BigDecimal) b.get("lucroUnitario")).compareTo((BigDecimal) a.get("lucroUnitario")))

@@ -454,10 +454,15 @@ function setupProdutosModule() {
         document.getElementById('produtoReferencia').innerHTML = '<option value="">-- Selecione a unidade primeiro --</option>';
         document.getElementById('produtoReferencia').disabled = true;
         document.getElementById('secaoMateriasPrimas').style.display = 'none';
+        produtoCustoMedioAtual = null;
+        const campoMedio = document.getElementById('produtoCustoMedio');
+        if (campoMedio) { campoMedio.value = ''; campoMedio.placeholder = 'Calculado na 1ª entrada'; }
         carregarClassesNosSeletores().then(() => { document.getElementById('produtoCodClasse').value = ''; });
         navegarProdutos('cadastro');
     });
-    
+
+    document.getElementById('btnHistoricoCusto')?.addEventListener('click', abrirHistoricoCusto);
+
     document.querySelector('#conteudoMenuProdutos .menu-card:nth-child(2)')?.addEventListener('click', () => {
         navegarProdutos('consulta');
         buscarProdutosAPI();
@@ -586,6 +591,15 @@ function renderizarTabelaProdutos(lista) { // Mantive o nome original que a busc
         const estoqueAtual = prod.quantidadeEstoque || 0;
         const estoqueClass = estoqueAtual <= 5 ? 'low-stock' : ''; // Destaque visual se estiver acabando
 
+        // Custo médio ponderado quando existe; senão o custo informado no cadastro.
+        // Produto com composição e sem custo médio mostra "sem custo" — o valor real
+        // dele vem da explosão da BOM e só aparece na Análise de Lucro / DRE.
+        const custoMedio = Number(prod.custoMedio) || 0;
+        const custoEhMedio = custoMedio > 0;
+        const custoBase = custoEhMedio ? custoMedio : (Number(prod.valorCusto) || 0);
+        const precoVenda = Number(prod.valor) || 0;
+        const margemPct = precoVenda > 0 ? ((precoVenda - custoBase) / precoVenda) * 100 : 0;
+
         const card = document.createElement('div');
         card.className = 'product-card';
         card.innerHTML = `
@@ -601,7 +615,15 @@ function renderizarTabelaProdutos(lista) { // Mantive o nome original que a busc
             </div>
             
             <div class="product-price">${formatarMoeda(prod.valor)}</div>
-            
+
+            <div class="product-cost-line">
+                ${custoBase > 0
+                    ? `<span class="cost-label">${custoEhMedio ? 'Custo médio' : 'Custo informado'}</span>
+                       <span class="cost-amount ${custoEhMedio ? 'medio' : ''}">${formatarMoeda(custoBase)}</span>
+                       <span class="cost-margin ${margemPct < 0 ? 'negativa' : ''}">${margemPct.toFixed(0)}% margem</span>`
+                    : `<span class="cost-label sem-custo"><i class="ph ph-warning"></i> Sem custo — margem irreal</span>`}
+            </div>
+
             <div class="product-card-footer">
                 <div class="stock-status">
                     <span class="stock-label">Estoque atual:</span>
@@ -920,6 +942,14 @@ async function prepararEdicaoProduto(id) {
         inputCusto.value = produto.valorCusto ? (produto.valorCusto * 100).toFixed(0) : '';
         if (inputCusto.value) mascaraMoeda(inputCusto);
 
+        // Custo médio ponderado (somente leitura — quem o move é a entrada de estoque)
+        produtoCustoMedioAtual = { id: produto.id || produto.codProduto, nome: produto.nome };
+        const inputMedio = document.getElementById('produtoCustoMedio');
+        inputMedio.value = (produto.custoMedio != null && Number(produto.custoMedio) > 0)
+            ? formatarMoeda(produto.custoMedio)
+            : '';
+        inputMedio.placeholder = 'Ainda sem entradas';
+
         // Unidade de medida e referência
         const selUnidade = document.getElementById('produtoUnidadeMedida');
         selUnidade.value = produto.unidadeMedida || '';
@@ -941,6 +971,72 @@ async function prepararEdicaoProduto(id) {
         navegarProdutos('cadastro');
     } catch (e) {
         alert("Erro ao carregar dados do produto.");
+    }
+}
+
+/* ── Custo médio ponderado: trilha de auditoria ─────────────────────── */
+let produtoCustoMedioAtual = null;
+
+const ROTULO_ORIGEM_CUSTO = {
+    COMPRA:            'Compra',
+    PRODUCAO:          'Produção',
+    ESTORNO_VENDA:     'Estorno de venda',
+    ESTORNO_PRODUCAO:  'Estorno de produção',
+    AJUSTE_MANUAL:     'Custo informado',
+    SALDO_INICIAL:     'Saldo inicial'
+};
+
+async function abrirHistoricoCusto() {
+    if (!produtoCustoMedioAtual || !produtoCustoMedioAtual.id) {
+        mostrarToast('Salve o produto antes de consultar o histórico de custo.', 'error');
+        return;
+    }
+    document.getElementById('histCustoProduto').innerText = produtoCustoMedioAtual.nome || '';
+    const corpo = document.getElementById('histCustoCorpo');
+    corpo.innerHTML = '<div style="padding:28px;text-align:center;color:var(--text-muted);"><i class="ph ph-spinner ph-spin"></i> Carregando...</div>';
+    document.getElementById('modalHistoricoCusto').classList.add('open');
+
+    try {
+        const res = await fetch(`${API_URL}/api/produtos/${produtoCustoMedioAtual.id}/historico-custo`, { headers: getAuthHeader() });
+        if (!res.ok) { corpo.innerHTML = '<div style="padding:24px;text-align:center;color:var(--danger);">Erro ao carregar o histórico.</div>'; return; }
+        const linhas = await res.json();
+
+        if (!linhas.length) {
+            corpo.innerHTML = `<div style="padding:28px;text-align:center;color:var(--text-muted);">
+                Nenhuma entrada registrada ainda. O custo médio passa a existir na primeira compra,
+                produção ou custo informado.</div>`;
+            return;
+        }
+
+        let html = `<table class="dfc-grid"><thead><tr>
+            <th class="dfc-col-nome">Data / Evento</th>
+            <th>Estoque antes</th><th>Custo antes</th>
+            <th>Entrou</th><th>Custo entrada</th>
+            <th>Estoque depois</th><th>Custo médio</th>
+        </tr></thead><tbody>`;
+
+        linhas.forEach(h => {
+            const data = h.dataMovimento ? h.dataMovimento.split('-').reverse().join('/') : '—';
+            const rotulo = ROTULO_ORIGEM_CUSTO[h.origem] || h.origem;
+            const subiu = Number(h.custoNovo) > Number(h.custoAnterior);
+            const desceu = Number(h.custoNovo) < Number(h.custoAnterior);
+            const seta = subiu ? '<i class="ph ph-arrow-up" style="color:var(--danger);"></i>'
+                       : desceu ? '<i class="ph ph-arrow-down" style="color:#059669;"></i>' : '';
+            html += `<tr class="analitica">
+                <td class="dfc-col-nome"><strong>${data}</strong> · ${finEsc(rotulo)}
+                    ${h.descricao ? `<div style="font-size:10.5px;color:var(--text-muted);">${finEsc(h.descricao)}</div>` : ''}</td>
+                <td>${Number(h.quantidadeAnterior) || 0}</td>
+                <td>${finMoeda(h.custoAnterior)}</td>
+                <td>${Number(h.quantidadeEntrada) || 0}</td>
+                <td>${finMoeda(h.custoEntrada)}</td>
+                <td>${Number(h.quantidadeNova) || 0}</td>
+                <td><strong>${finMoeda(h.custoNovo)}</strong> ${seta}</td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        corpo.innerHTML = html;
+    } catch (e) {
+        corpo.innerHTML = '<div style="padding:24px;text-align:center;color:var(--danger);">Erro de conexão.</div>';
     }
 }
 
@@ -3540,6 +3636,16 @@ function finRenderDre(dre) {
             Cadastre o custo ou a composição desses produtos.</span>
         </div>`;
     }
+    if (dre.comprasEmDespesa > 0) {
+        html += `<div class="dre-alerta">
+            <i class="ph ph-warning-octagon"></i>
+            <span><strong>Contagem dupla:</strong> ${dre.comprasEmDespesa} compra(s) que entraram em
+            estoque estão classificadas numa classe de <strong>Despesa</strong>
+            (${finMoeda(dre.valorComprasEmDespesa)} pagos no período). Mercadoria é estoque — ela já
+            entra no resultado como CMV quando é vendida. Reclassifique essas contas para uma classe
+            de <strong>Custo</strong> (ex.: "Compras de Mercadorias") em Contas a Pagar.</span>
+        </div>`;
+    }
 
     const linha = (label, valor, cls = '') =>
         `<tr class="dre-row ${cls}"><td class="dfc-col-nome">${label}</td><td>${finMoeda(valor)}</td></tr>`;
@@ -3562,6 +3668,9 @@ function finRenderDre(dre) {
         <div class="dre-kpi"><span>Margem Operacional</span><strong>${finPct(dre.margemOperacional)}</strong></div>
         <div class="dre-kpi"><span>Ticket Médio</span><strong>${finMoeda(dre.ticketMedio)}</strong></div>
         <div class="dre-kpi"><span>Vendas no período</span><strong>${dre.quantidadeVendas ?? 0}</strong></div>
+        <div class="dre-kpi estoque" title="Σ quantidade em estoque × custo médio — posição de hoje">
+            <span>Estoque Valorizado</span><strong>${finMoeda(dre.estoqueValorizado)}</strong>
+        </div>
     </div>`;
 
     html += `<div class="dfc-fech-titulo">Margem por Produto</div>`;
@@ -3591,9 +3700,12 @@ function finRenderDre(dre) {
     }
 
     html += `<div class="dre-nota">
-        A DRE é <strong>regime de competência</strong>: mede o resultado do que foi vendido no período.
-        As compras de mercadoria não aparecem aqui — viram estoque e só entram como CMV quando o item é vendido.
-        Para ver o dinheiro que efetivamente entrou e saiu, use o <strong>Fluxo de Caixa (DFC)</strong>.
+        <strong>Comprei num mês e vendi no outro — onde fica o custo?</strong> No
+        <em>Estoque Valorizado</em> acima. Comprar não é resultado: é trocar dinheiro por mercadoria.
+        O dinheiro sai no <strong>Fluxo de Caixa (DFC)</strong> no dia em que a conta é paga; o custo
+        só vira resultado aqui, como <strong>CMV</strong>, no dia em que o item é vendido. Entre uma
+        coisa e outra ele fica parado no estoque. É exatamente por isso que os dois relatórios existem:
+        o DFC responde <em>"tenho caixa?"</em> e a DRE responde <em>"estou lucrando?"</em>.
     </div>`;
 
     cont.innerHTML = html;

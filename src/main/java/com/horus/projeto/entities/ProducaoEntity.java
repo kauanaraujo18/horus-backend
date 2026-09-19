@@ -38,6 +38,14 @@ public class ProducaoEntity {
     @Column(name = "data_producao", nullable = false, updatable = false)
     private LocalDateTime dataProducao;
 
+    /** Custo total dos insumos realmente consumidos nesta ordem. */
+    @Column(name = "custo_total", precision = 15, scale = 2)
+    private java.math.BigDecimal custoTotal;
+
+    /** custoTotal ÷ quantidadeProduzida — o custo com que o produto entrou em estoque. */
+    @Column(name = "custo_unitario", precision = 15, scale = 4)
+    private java.math.BigDecimal custoUnitario;
+
     /**
      * Estornada indica que a produção foi revertida:
      * os insumos foram devolvidos e o estoque do produto decrementado.

@@ -107,6 +107,16 @@ public class ProdutoController {
         }
     }
 
+    /** Trilha de auditoria do custo médio ponderado deste produto. */
+    @GetMapping("/{id}/historico-custo")
+    public ResponseEntity<?> historicoCusto(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(service.historicoCusto(id, getEmpresaIdLogada()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(403).build();
+        }
+    }
+
     @GetMapping("/pesquisar")
     public ResponseEntity<List<ProdutoEntity>> pesquisarProdutos(@RequestParam String termo) {
         List<ProdutoEntity> produtos = repository.findByNomeContainingIgnoreCaseAndEmpresaId(termo, getEmpresaIdLogada());
