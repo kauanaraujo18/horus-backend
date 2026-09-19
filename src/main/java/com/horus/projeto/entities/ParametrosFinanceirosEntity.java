@@ -26,4 +26,11 @@ public class ParametrosFinanceirosEntity {
 
     @Column(name = "cod_conta_banco_padrao")
     private Long codContaBancoPadrao;
+
+    /**
+     * Classe analítica de CUSTO usada para classificar o CMV apurado na venda.
+     * Quando nula, o service resolve por convenção (código "4.1.02" do plano padrão).
+     */
+    @Column(name = "cod_classe_cmv")
+    private Long codClasseCmv;
 }

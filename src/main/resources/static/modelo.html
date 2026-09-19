@@ -993,6 +993,9 @@
                         <button class="menu-card" id="btnDfc">
                             <i class="ph ph-chart-line-up"></i><span>Fluxo de Caixa (DFC)</span>
                         </button>
+                        <button class="menu-card" id="btnDre">
+                            <i class="ph ph-scales"></i><span>Resultado / Margem (DRE)</span>
+                        </button>
                     </div>
                 </div>
 
@@ -1110,6 +1113,28 @@
                         </button>
                     </div>
                     <div id="dfcConteudo" class="dfc-conteudo scrollable-box">
+                        <div style="padding:32px;text-align:center;color:var(--text-muted);">Selecione o período e clique em Gerar.</div>
+                    </div>
+                </div>
+
+                <!-- ── DRE GERENCIAL / MARGEM ───────────────────────── -->
+                <div id="finViewDre" class="view-section" style="display:none;">
+                    <div class="dfc-toolbar">
+                        <div class="input-group-inline"><label>De</label><input type="date" id="dreInicio"></div>
+                        <div class="input-group-inline"><label>Até</label><input type="date" id="dreFim"></div>
+                        <button class="btn-primary" style="width:auto;padding:9px 18px;" onclick="finGerarDre()">
+                            <i class="ph ph-arrows-clockwise"></i> Gerar
+                        </button>
+                        <button class="btn-secondary" style="margin-left:auto;" onclick="finReprocessarCmv()"
+                                title="Apura o CMV das vendas antigas que ainda não têm custo calculado">
+                            <i class="ph ph-clock-clockwise"></i> Reprocessar CMV
+                        </button>
+                        <button class="btn-secondary" onclick="finDiagnosticoCusteio()"
+                                title="Lista os produtos sem base de custo que distorcem a margem">
+                            <i class="ph ph-stethoscope"></i> Diagnóstico
+                        </button>
+                    </div>
+                    <div id="dreConteudo" class="dfc-conteudo scrollable-box">
                         <div style="padding:32px;text-align:center;color:var(--text-muted);">Selecione o período e clique em Gerar.</div>
                     </div>
                 </div>

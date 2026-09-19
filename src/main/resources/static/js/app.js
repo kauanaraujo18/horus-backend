@@ -3160,11 +3160,12 @@ function setupFinanceiroModule() {
     document.getElementById('btnConciliacao')?.addEventListener('click', () => finNavegar('conciliacao'));
     document.getElementById('btnPlanoContas')?.addEventListener('click', () => finNavegar('plano'));
     document.getElementById('btnDfc')?.addEventListener('click', () => finNavegar('dfc'));
+    document.getElementById('btnDre')?.addEventListener('click', () => finNavegar('dre'));
     document.getElementById('classeTipo')?.addEventListener('change', () => finPopularSelectPai());
 }
 
 function finNavegar(tela) {
-    ['finViewMenu', 'finViewContas', 'finViewTransferencias', 'finViewConciliacao', 'finViewPlano', 'finViewDfc'].forEach(id => {
+    ['finViewMenu', 'finViewContas', 'finViewTransferencias', 'finViewConciliacao', 'finViewPlano', 'finViewDfc', 'finViewDre'].forEach(id => {
         const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
     const titulo = document.getElementById('tituloJanelaFinanceiro');
@@ -3192,6 +3193,10 @@ function finNavegar(tela) {
     } else if (tela === 'dfc') {
         document.getElementById('finViewDfc').style.display = 'block';
         titulo.innerText = 'Financeiro › Fluxo de Caixa';
+        btnVoltar.style.display = 'flex';
+    } else if (tela === 'dre') {
+        document.getElementById('finViewDre').style.display = 'block';
+        titulo.innerText = 'Financeiro › Resultado / Margem (DRE)';
         btnVoltar.style.display = 'flex';
     } else {
         document.getElementById('finViewMenu').style.display = 'block';
@@ -3483,6 +3488,177 @@ async function finReprocessarVendas() {
             mostrarToast(body.erro || 'Erro ao reprocessar.', 'error');
         }
     } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
+/* ── DRE Gerencial / Margem por produto ─────────────────────────────── */
+
+async function finGerarDre() {
+    let ini = document.getElementById('dreInicio').value;
+    let fim = document.getElementById('dreFim').value;
+    if (!ini || !fim) {
+        const hoje = new Date();
+        const primeiro = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+        const ultimo = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+        ini = ini || primeiro.toISOString().split('T')[0];
+        fim = fim || ultimo.toISOString().split('T')[0];
+        document.getElementById('dreInicio').value = ini;
+        document.getElementById('dreFim').value = fim;
+    }
+    const cont = document.getElementById('dreConteudo');
+    cont.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);"><i class="ph ph-spinner ph-spin"></i> Apurando resultado...</div>';
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/dre?inicio=${ini}&fim=${fim}`, { headers: getAuthHeader() });
+        const body = await res.json();
+        if (!res.ok) { cont.innerHTML = `<div style="padding:24px;color:var(--danger);text-align:center;">${body.erro || 'Erro ao gerar DRE.'}</div>`; return; }
+        finRenderDre(body);
+    } catch (e) {
+        cont.innerHTML = '<div style="padding:24px;color:var(--danger);text-align:center;">Erro de conexão.</div>';
+    }
+}
+
+function finPct(v) {
+    return `${(Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+}
+
+function finRenderDre(dre) {
+    const cont = document.getElementById('dreConteudo');
+    let html = '';
+
+    // Avisos de confiabilidade — a margem só vale o que a base de custo vale.
+    if (dre.vendasSemCmv > 0) {
+        html += `<div class="dre-alerta">
+            <i class="ph ph-warning-circle"></i>
+            <span><strong>${dre.vendasSemCmv}</strong> venda(s) do período ainda não têm CMV apurado.
+            O lucro abaixo está superestimado — clique em <strong>Reprocessar CMV</strong>.</span>
+        </div>`;
+    }
+    if (dre.produtosSemCusto > 0) {
+        html += `<div class="dre-alerta atencao">
+            <i class="ph ph-info"></i>
+            <span><strong>${dre.produtosSemCusto}</strong> produto(s) vendido(s) sem base de custo,
+            somando <strong>${finMoeda(dre.receitaSemCusto)}</strong> de receita apurada com custo zero.
+            Cadastre o custo ou a composição desses produtos.</span>
+        </div>`;
+    }
+
+    const linha = (label, valor, cls = '') =>
+        `<tr class="dre-row ${cls}"><td class="dfc-col-nome">${label}</td><td>${finMoeda(valor)}</td></tr>`;
+
+    html += `<table class="dfc-grid dre-grid"><thead><tr>
+        <th class="dfc-col-nome">Demonstrativo de Resultado (competência)</th><th>Valor</th>
+    </tr></thead><tbody>
+        ${linha('Receita Bruta de Vendas', dre.receitaBruta)}
+        ${linha('(−) Descontos concedidos', dre.descontos)}
+        ${linha('(+) Acréscimos', dre.acrescimos)}
+        ${linha('(=) Receita Líquida', dre.receitaLiquida, 'subtotal')}
+        ${linha('(−) CMV — Custo da Mercadoria Vendida', dre.cmv)}
+        ${linha('(=) Lucro Bruto', dre.lucroBruto, 'subtotal')}
+        ${linha('(−) Despesas Operacionais', dre.despesasOperacionais)}
+        ${linha('(=) Resultado Operacional', dre.resultadoOperacional, 'final')}
+    </tbody></table>`;
+
+    html += `<div class="dre-kpis">
+        <div class="dre-kpi"><span>Margem Bruta</span><strong>${finPct(dre.margemBruta)}</strong></div>
+        <div class="dre-kpi"><span>Margem Operacional</span><strong>${finPct(dre.margemOperacional)}</strong></div>
+        <div class="dre-kpi"><span>Ticket Médio</span><strong>${finMoeda(dre.ticketMedio)}</strong></div>
+        <div class="dre-kpi"><span>Vendas no período</span><strong>${dre.quantidadeVendas ?? 0}</strong></div>
+    </div>`;
+
+    html += `<div class="dfc-fech-titulo">Margem por Produto</div>`;
+    const produtos = dre.produtos || [];
+    if (produtos.length === 0) {
+        html += `<div style="padding:20px;text-align:center;color:var(--text-muted);">Sem vendas no período.</div>`;
+    } else {
+        html += `<table class="dfc-grid dre-produtos"><thead><tr>
+            <th class="dfc-col-nome">Produto</th><th>Qtd</th><th>Receita</th>
+            <th>CMV</th><th>Lucro</th><th>Margem</th>
+        </tr></thead><tbody>`;
+        produtos.forEach(p => {
+            const alerta = p.semBaseCusto
+                ? ' <i class="ph ph-warning" title="Produto sem base de custo — margem irreal" style="color:var(--warning,#f59e0b);"></i>'
+                : '';
+            const negativo = Number(p.lucroBruto) < 0 ? ' style="color:var(--danger);"' : '';
+            html += `<tr class="analitica">
+                <td class="dfc-col-nome">${finEsc(p.nome || '—')}${alerta}</td>
+                <td>${Number(p.quantidade) || 0}</td>
+                <td>${finMoeda(p.receita)}</td>
+                <td>${finMoeda(p.cmv)}</td>
+                <td${negativo}>${finMoeda(p.lucroBruto)}</td>
+                <td${negativo}>${finPct(p.margem)}</td>
+            </tr>`;
+        });
+        html += `</tbody></table>`;
+    }
+
+    html += `<div class="dre-nota">
+        A DRE é <strong>regime de competência</strong>: mede o resultado do que foi vendido no período.
+        As compras de mercadoria não aparecem aqui — viram estoque e só entram como CMV quando o item é vendido.
+        Para ver o dinheiro que efetivamente entrou e saiu, use o <strong>Fluxo de Caixa (DFC)</strong>.
+    </div>`;
+
+    cont.innerHTML = html;
+}
+
+async function finReprocessarCmv() {
+    if (!confirm('Apurar o CMV das vendas que ainda não têm custo calculado?\n\nAs vendas antigas usarão o custo ATUAL dos produtos (não existe histórico de custo). Não duplica.')) return;
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/dre/reprocessar-cmv`, { method: 'POST', headers: getAuthHeader() });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) {
+            mostrarToast(`${body.reprocessadas ?? 0} venda(s) com CMV apurado.`, 'success');
+            finGerarDre();
+        } else {
+            mostrarToast(body.erro || 'Erro ao reprocessar CMV.', 'error');
+        }
+    } catch (e) { mostrarToast('Erro de conexão.', 'error'); }
+}
+
+async function finDiagnosticoCusteio() {
+    const cont = document.getElementById('dreConteudo');
+    cont.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);"><i class="ph ph-spinner ph-spin"></i> Analisando base de custo...</div>';
+    try {
+        const res = await fetch(`${API_URL}/api/financeiro/dre/diagnostico-custeio`, { headers: getAuthHeader() });
+        const d = await res.json();
+        if (!res.ok) { cont.innerHTML = `<div style="padding:24px;color:var(--danger);text-align:center;">${d.erro || 'Erro no diagnóstico.'}</div>`; return; }
+
+        let html = `<div class="dfc-fech-titulo">Diagnóstico de Custeio</div>`;
+        html += `<div class="dre-kpis">
+            <div class="dre-kpi"><span>Classe de CMV</span><strong>${d.classeCmvConfigurada ? 'Configurada' : 'Não configurada'}</strong></div>
+            <div class="dre-kpi"><span>Linhas de CMV ativas</span><strong>${d.linhasCmvAtivas ?? 0}</strong></div>
+            <div class="dre-kpi"><span>Vendidos sem custo</span><strong>${(d.produtosVendidosSemCusto || []).length}</strong></div>
+            <div class="dre-kpi"><span>Cadastro sem custo</span><strong>${(d.produtosCadastradosSemCusto || []).length}</strong></div>
+        </div>`;
+
+        const vendidos = d.produtosVendidosSemCusto || [];
+        html += `<div class="dfc-fech-titulo">Já vendidos sem base de custo (distorcem a margem)</div>`;
+        if (vendidos.length === 0) {
+            html += `<div style="padding:16px;text-align:center;color:var(--text-muted);">Nenhum. Todas as vendas têm custo apurado.</div>`;
+        } else {
+            html += `<table class="dfc-grid"><thead><tr><th class="dfc-col-nome">Produto</th><th>Qtd vendida</th><th>Ocorrências</th></tr></thead><tbody>`;
+            vendidos.forEach(p => {
+                html += `<tr class="analitica"><td class="dfc-col-nome">${finEsc(p.nome || ('#' + p.codProduto))}</td><td>${Number(p.quantidadeVendida) || 0}</td><td>${p.ocorrencias ?? 0}</td></tr>`;
+            });
+            html += `</tbody></table>`;
+        }
+
+        const cadastro = d.produtosCadastradosSemCusto || [];
+        html += `<div class="dfc-fech-titulo">Cadastro sem custo (vão distorcer na próxima venda)</div>`;
+        if (cadastro.length === 0) {
+            html += `<div style="padding:16px;text-align:center;color:var(--text-muted);">Nenhum. Todos os produtos têm custo ou composição.</div>`;
+        } else {
+            html += `<table class="dfc-grid"><thead><tr><th class="dfc-col-nome">Produto</th><th>Tipo</th><th>Tem composição?</th></tr></thead><tbody>`;
+            cadastro.forEach(p => {
+                html += `<tr class="analitica"><td class="dfc-col-nome">${finEsc(p.nome || ('#' + p.codProduto))}</td><td>${finEsc(p.tipo || '—')}</td><td>${p.possuiComposicao ? 'Sim (insumos sem custo)' : 'Não'}</td></tr>`;
+            });
+            html += `</tbody></table>`;
+        }
+
+        html += `<div class="dre-nota">Corrija em <strong>Produtos</strong>: preencha o <em>Valor de Custo</em> (revenda/matéria-prima)
+            ou cadastre a <em>composição</em> (produto final). Depois volte aqui e clique em <strong>Gerar</strong>.</div>`;
+        cont.innerHTML = html;
+    } catch (e) {
+        cont.innerHTML = '<div style="padding:24px;color:var(--danger);text-align:center;">Erro de conexão.</div>';
+    }
 }
 
 function finRenderDfcLinhas(nodos, mensal, depth) {

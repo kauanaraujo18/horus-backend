@@ -45,6 +45,9 @@ public class VendaService {
     @Autowired private EmpresaRepository empresaRepository;
     @Autowired private LancamentoFinanceiroService lancamentoService;
     @Autowired private ParametrosFinanceiroService parametrosService;
+    @Autowired private CusteioService custeioService;
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(VendaService.class);
 
     @Transactional
     public VendaEntity registrarVenda(VendaRequestDTO dadosVenda, Long empresaId) {
@@ -145,6 +148,17 @@ public class VendaService {
         // Best-effort: uma falha de classificação NUNCA derruba a venda.
         gerarLancamentosDaVenda(salva, empresaId);
 
+        // ── Apuração do CMV (regime de competência) ────────────────────────────────
+        // Congela o custo unitário de cada item no ato da venda. Vive em custo_venda,
+        // NÃO no razão de caixa: a saída de dinheiro da mercadoria já foi registrada
+        // na baixa do Contas a Pagar — lançá-la aqui duplicaria a saída no DFC.
+        // Best-effort pelo mesmo motivo da linha acima: custo ausente não derruba venda.
+        try {
+            custeioService.registrarCustoVenda(salva, empresaId);
+        } catch (Exception e) {
+            log.error("Falha ao apurar o CMV da venda {}: {}", salva.getCodVenda(), e.getMessage(), e);
+        }
+
         return salva;
     }
 
@@ -215,6 +229,9 @@ public class VendaService {
 
         // 2) Estorna os lançamentos financeiros (entradas) desta venda
         lancamentoService.estornarPorOrigem(OrigemLancamento.VENDA, codVenda);
+
+        // 2.1) Estorna o CMV — se a receita sai da DRE, o custo tem que sair junto
+        custeioService.estornarPorVenda(codVenda);
 
         // 3) Marca como estornada
         venda.setEstornada(true);

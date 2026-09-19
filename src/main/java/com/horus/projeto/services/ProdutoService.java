@@ -27,6 +27,7 @@ public class ProdutoService {
     private final EmpresaRepository empresaRepository;
     private final ProdutoMateriaPrimaRepository materiaPrimaRepository;
     private final com.horus.projeto.repositories.ClasseFinanceiraRepository classeFinanceiraRepository;
+    private final CusteioService custeioService;
 
     public List<ProdutoEntity> listarPorEmpresa(Long empresaId) {
         return repository.findByEmpresaId(empresaId);
@@ -216,20 +217,16 @@ public class ProdutoService {
 
     public List<Map<String, Object>> analiseLucro(Long empresaId) {
         List<ProdutoEntity> todos = repository.findByEmpresaId(empresaId);
-        List<ProdutoMateriaPrimaEntity> todasComps = materiaPrimaRepository.findAllByEmpresaId(empresaId);
 
-        Map<Long, ProdutoEntity> prodMap = todos.stream()
-                .collect(Collectors.toMap(ProdutoEntity::getCodProduto, p -> p));
-        Map<Long, List<ProdutoMateriaPrimaEntity>> compMap = todasComps.stream()
-                .collect(Collectors.groupingBy(c -> c.getId().getCodProdutoFinal()));
-
-        Map<Long, BigDecimal> memo = new HashMap<>();
+        // Usa o MESMO motor de custo que apura o CMV na venda — o custo exibido aqui
+        // é, por construção, o custo que será congelado no próximo item vendido.
+        CusteioService.TabelaCustos tabela = custeioService.carregarTabela(empresaId);
 
         // Apenas produtos vendáveis ao consumidor final (R e PF) entram no ranking
         return todos.stream()
                 .filter(p -> p.getTipo() == TipoProduto.R || p.getTipo() == TipoProduto.PF)
                 .map(p -> {
-            BigDecimal custo = custoProducao(p.getCodProduto(), prodMap, compMap, memo, new HashSet<>());
+            BigDecimal custo = tabela.custoUnitario(p.getCodProduto());
             BigDecimal valor = p.getValor() != null ? p.getValor() : BigDecimal.ZERO;
             BigDecimal lucro = valor.subtract(custo);
             BigDecimal margem = valor.compareTo(BigDecimal.ZERO) > 0
@@ -244,43 +241,12 @@ public class ProdutoService {
             linha.put("custoProducao", custo);
             linha.put("lucroUnitario", lucro);
             linha.put("margem", margem);
-            linha.put("possuiComposicao", compMap.containsKey(p.getCodProduto()));
+            linha.put("possuiComposicao", tabela.possuiComposicao(p.getCodProduto()));
+            linha.put("semBaseCusto", custo.signum() <= 0);
             return linha;
         })
         .sorted((a, b) -> ((BigDecimal) b.get("lucroUnitario")).compareTo((BigDecimal) a.get("lucroUnitario")))
         .collect(Collectors.toList());
-    }
-
-    /**
-     * Custo unitário de produção: se o produto tem composição, soma recursivamente
-     * (custo do insumo × quantidade); senão, usa o valor de custo cadastrado.
-     */
-    private BigDecimal custoProducao(Long codProduto,
-                                     Map<Long, ProdutoEntity> prodMap,
-                                     Map<Long, List<ProdutoMateriaPrimaEntity>> compMap,
-                                     Map<Long, BigDecimal> memo,
-                                     Set<Long> visitados) {
-        if (memo.containsKey(codProduto)) return memo.get(codProduto);
-        if (!visitados.add(codProduto)) return BigDecimal.ZERO; // ciclo
-
-        ProdutoEntity produto = prodMap.get(codProduto);
-        if (produto == null) return BigDecimal.ZERO;
-
-        List<ProdutoMateriaPrimaEntity> comps = compMap.getOrDefault(codProduto, List.of());
-        BigDecimal custo;
-        if (comps.isEmpty()) {
-            custo = produto.getValorCusto() != null ? produto.getValorCusto() : BigDecimal.ZERO;
-        } else {
-            custo = BigDecimal.ZERO;
-            for (ProdutoMateriaPrimaEntity comp : comps) {
-                BigDecimal qtd = comp.getQuantidade() != null ? comp.getQuantidade() : BigDecimal.ONE;
-                BigDecimal custoInsumo = custoProducao(comp.getId().getCodProdutoMateriaPrima(),
-                        prodMap, compMap, memo, new HashSet<>(visitados));
-                custo = custo.add(custoInsumo.multiply(qtd));
-            }
-        }
-        memo.put(codProduto, custo);
-        return custo;
     }
 
     private ProdutoEsquemaNodeDTO buildNode(ProdutoEntity produto,

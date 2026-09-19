@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "horus-app",
-      "runtimeExecutable": "mvn",
+      "runtimeExecutable": "C:/KBsAntigo/Josys/VERSOES/horus/mvnw.cmd",
       "runtimeArgs": ["spring-boot:run"],
       "port": 8080
     }
