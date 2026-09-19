@@ -36,6 +36,9 @@ public class CusteioService {
     /** Casas decimais do custo unitário — BOM de insumo costuma ter custo fracionário. */
     private static final int ESCALA_CUSTO = 4;
 
+    /** Casas decimais de QUANTIDADE (estoque, entradas, consumo). */
+    public static final int ESCALA_QUANTIDADE = 3;
+
     private final CustoVendaRepository custoVendaRepository;
     private final ProdutoCustoHistoricoRepository historicoRepository;
     private final ProdutoRepository produtoRepository;
@@ -186,7 +189,7 @@ public class CusteioService {
         if (quantidade == null || quantidade.signum() <= 0) return produto;
 
         BigDecimal qtdAnterior = produto.getQuantidadeEstoque() != null
-                ? new BigDecimal(produto.getQuantidadeEstoque()) : BigDecimal.ZERO;
+                ? produto.getQuantidadeEstoque() : BigDecimal.ZERO;
         BigDecimal custoAnterior = produto.getCustoMedio() != null
                 ? produto.getCustoMedio() : BigDecimal.ZERO;
         BigDecimal custoEntrada = custoUnitarioEntrada != null && custoUnitarioEntrada.signum() > 0
@@ -205,18 +208,19 @@ public class CusteioService {
         }
         custoNovo = custoNovo.setScale(ESCALA_CUSTO, RoundingMode.HALF_UP);
 
-        produto.setQuantidadeEstoque(qtdNova.intValue());
+        qtdNova = qtdNova.setScale(ESCALA_QUANTIDADE, RoundingMode.HALF_UP);
+        produto.setQuantidadeEstoque(qtdNova);
         produto.setCustoMedio(custoNovo);
         ProdutoEntity salvo = produtoRepository.save(produto);
 
         ProdutoCustoHistoricoEntity h = new ProdutoCustoHistoricoEntity();
         h.setEmpresa(empresaRepository.getReferenceById(empresaId));
         h.setCodProduto(produto.getCodProduto());
-        h.setQuantidadeAnterior(esc(qtdAnterior));
+        h.setQuantidadeAnterior(escQtd(qtdAnterior));
         h.setCustoAnterior(esc(custoAnterior));
-        h.setQuantidadeEntrada(esc(quantidade));
+        h.setQuantidadeEntrada(escQtd(quantidade));
         h.setCustoEntrada(esc(custoEntrada));
-        h.setQuantidadeNova(esc(qtdNova));
+        h.setQuantidadeNova(escQtd(qtdNova));
         h.setCustoNovo(esc(custoNovo));
         h.setOrigem(origem);
         h.setOrigemId(origemId);
@@ -239,17 +243,17 @@ public class CusteioService {
         if (custoAnterior.compareTo(alvo) == 0) return;
 
         BigDecimal qtd = produto.getQuantidadeEstoque() != null
-                ? new BigDecimal(produto.getQuantidadeEstoque()) : BigDecimal.ZERO;
+                ? produto.getQuantidadeEstoque() : BigDecimal.ZERO;
         produto.setCustoMedio(alvo);
 
         ProdutoCustoHistoricoEntity h = new ProdutoCustoHistoricoEntity();
         h.setEmpresa(empresaRepository.getReferenceById(empresaId));
         h.setCodProduto(produto.getCodProduto());
-        h.setQuantidadeAnterior(esc(qtd));
+        h.setQuantidadeAnterior(escQtd(qtd));
         h.setCustoAnterior(esc(custoAnterior));
-        h.setQuantidadeEntrada(BigDecimal.ZERO.setScale(ESCALA_CUSTO));
+        h.setQuantidadeEntrada(BigDecimal.ZERO.setScale(ESCALA_QUANTIDADE));
         h.setCustoEntrada(alvo);
-        h.setQuantidadeNova(esc(qtd));
+        h.setQuantidadeNova(escQtd(qtd));
         h.setCustoNovo(alvo);
         h.setOrigem(OrigemEntradaEstoque.AJUSTE_MANUAL);
         h.setDescricao("Custo informado manualmente no cadastro do produto");
@@ -276,6 +280,10 @@ public class CusteioService {
 
     private static BigDecimal esc(BigDecimal v) {
         return (v != null ? v : BigDecimal.ZERO).setScale(ESCALA_CUSTO, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal escQtd(BigDecimal v) {
+        return (v != null ? v : BigDecimal.ZERO).setScale(ESCALA_QUANTIDADE, RoundingMode.HALF_UP);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -318,7 +326,7 @@ public class CusteioService {
             if (codProduto == null) continue;
 
             BigDecimal quantidade = item.getQuantidade() != null
-                    ? new BigDecimal(item.getQuantidade()) : BigDecimal.ZERO;
+                    ? item.getQuantidade() : BigDecimal.ZERO;
             if (quantidade.signum() <= 0) continue;
 
             BigDecimal unitario = tabela.custoUnitario(codProduto);
@@ -335,7 +343,7 @@ public class CusteioService {
             custo.setCodProduto(codProduto);
             custo.setNomeProduto(nome);
             custo.setCodClasse(codClasseCmv);
-            custo.setQuantidade(quantidade.setScale(ESCALA_CUSTO, RoundingMode.HALF_UP));
+            custo.setQuantidade(escQtd(quantidade));
             custo.setCustoUnitario(unitario);
             custo.setCustoTotal(total);
             custo.setDataMovimento(dataCompetencia);

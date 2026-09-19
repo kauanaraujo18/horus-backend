@@ -34,8 +34,9 @@ public class ProdutoVendaEntity implements Serializable {
     @JoinColumn(name = "cod_produto", nullable = false)
     private ProdutoEntity produto;
 
-    @Column(name = "quantidade", nullable = false)
-    private Integer quantidade;
+    /** Quantidade vendida — decimal para permitir venda por peso/volume. */
+    @Column(name = "quantidade", nullable = false, precision = 15, scale = 3)
+    private BigDecimal quantidade;
 
     @Column(name = "valor_unitario", nullable = false)
     private BigDecimal valorUnitario;

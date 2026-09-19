@@ -20,7 +20,7 @@ public class ProducaoCalculoDTO {
     private Long codProduto;
     private String nomeProduto;
     private String tipoProduto;
-    private Integer quantidadeSolicitada;
+    private BigDecimal quantidadeSolicitada;
     /** true somente se TODOS os insumos têm estoque suficiente. */
     private boolean podeRealizar;
     private List<InsumoNecessarioDTO> insumos;
@@ -32,7 +32,7 @@ public class ProducaoCalculoDTO {
         private Long codInsumo;
         private String nomeInsumo;
         private BigDecimal quantidadeNecessaria;
-        private Integer quantidadeDisponivel;
+        private BigDecimal quantidadeDisponivel;
         /** true se quantidadeDisponivel >= quantidadeNecessaria */
         private boolean suficiente;
     }

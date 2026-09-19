@@ -174,7 +174,7 @@ public class RelatorioPdfService {
             for (ItemVendaResponseDTO item : itens) {
                 if (!prodIds.contains(item.getCodProduto())) continue;
                 tabItens.addCell(tdLeft(item.getNome() != null ? item.getNome() : "—"));
-                tabItens.addCell(tdCenter(String.valueOf(item.getQuantidade())));
+                tabItens.addCell(tdCenter(fmtQtd(item.getQuantidade())));
                 tabItens.addCell(tdRight(fmtMoeda(item.getValorUnitario())));
                 tabItens.addCell(tdRight(fmtMoeda(item.getValorTotalItem())));
             }
@@ -294,7 +294,7 @@ public class RelatorioPdfService {
             if (item.getProduto() == null || !prodIds.contains(item.getProduto().getCodProduto())) continue;
             temItem = true;
             tabItens.addCell(tdLeft(item.getProduto().getNome()));
-            tabItens.addCell(tdCenter(String.valueOf(item.getQuantidade())));
+            tabItens.addCell(tdCenter(fmtQtd(item.getQuantidade())));
             tabItens.addCell(tdRight(fmtMoeda(item.getValorUnitario())));
             tabItens.addCell(tdRight(fmtMoeda(item.getValorTotalItem())));
         }
@@ -478,6 +478,12 @@ public class RelatorioPdfService {
 
     private String fmtData(LocalDate d)     { return d != null ? d.format(FMT_DATE) : "—"; }
     private String fmtDataHora(LocalDateTime dt) { return dt != null ? dt.format(FMT_DT) : "—"; }
+
+    /** Quantidade sem zeros à direita: 3 em vez de 3,000 — e 0,35 quando é fracionada. */
+    private String fmtQtd(java.math.BigDecimal v) {
+        if (v == null) return "0";
+        return v.stripTrailingZeros().toPlainString().replace('.', ',');
+    }
 
     private String fmtMoeda(BigDecimal v) {
         if (v == null) return "R$ 0,00";

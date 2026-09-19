@@ -35,7 +35,7 @@ public class ProducaoItemEntity {
     private ProdutoEntity insumo;
 
     /** Quantidade do insumo efetivamente consumida. */
-    @Column(name = "quantidade_consumida", nullable = false)
+    @Column(name = "quantidade_consumida", nullable = false, precision = 15, scale = 3)
     private BigDecimal quantidadeConsumida;
 
     /**

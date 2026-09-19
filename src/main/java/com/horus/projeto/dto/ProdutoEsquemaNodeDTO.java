@@ -11,7 +11,7 @@ public class ProdutoEsquemaNodeDTO {
     private Long codProduto;
     private String nome;
     private String tipo;
-    private Integer estoque;
+    private BigDecimal estoque;
     private BigDecimal quantidade; // quantidade consumida na composição do pai (null para raízes)
     private List<ProdutoEsquemaNodeDTO> children;
 }

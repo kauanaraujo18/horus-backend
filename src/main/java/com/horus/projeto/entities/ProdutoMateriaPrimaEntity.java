@@ -29,6 +29,6 @@ public class ProdutoMateriaPrimaEntity {
     @JoinColumn(name = "cod_produto_materia_prima")
     private ProdutoEntity materiaPrima;
 
-    @Column(name = "quantidade", nullable = false)
+    @Column(name = "quantidade", nullable = false, precision = 15, scale = 3)
     private BigDecimal quantidade;
 }

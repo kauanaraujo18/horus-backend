@@ -113,6 +113,14 @@ public class SchemaCheck {
             p.add(new Pendencia("producao_item.custo_unitario não existe — estorno de produção distorce o custo",
                     "custo_medio_v1.sql"));
 
+        if (!colunaDecimal("produto", "quantidade_estoque"))
+            p.add(new Pendencia("produto.quantidade_estoque não é decimal — consumo fracionário de insumo é truncado",
+                    "estoque_decimal_v1.sql"));
+
+        if (!colunaDecimal("produto_venda", "quantidade"))
+            p.add(new Pendencia("produto_venda.quantidade não é decimal — não é possível vender por peso/volume",
+                    "estoque_decimal_v1.sql"));
+
         return p;
     }
 
@@ -129,6 +137,16 @@ public class SchemaCheck {
         Integer n = jdbc.queryForObject(
                 "SELECT count(*) FROM information_schema.columns " +
                 "WHERE table_schema='public' AND table_name=? AND column_name=?",
+                Integer.class, tabela, coluna);
+        return n != null && n > 0;
+    }
+
+    /** true quando a coluna é numérica COM casas decimais (não integer/bigint). */
+    private boolean colunaDecimal(String tabela, String coluna) {
+        Integer n = jdbc.queryForObject(
+                "SELECT count(*) FROM information_schema.columns " +
+                "WHERE table_schema='public' AND table_name=? AND column_name=? " +
+                "  AND data_type='numeric' AND COALESCE(numeric_scale, 0) > 0",
                 Integer.class, tabela, coluna);
         return n != null && n > 0;
     }

@@ -74,7 +74,7 @@ class ProdutoCodigoIntegrationTests {
         p.setCodigo(codigo);
         p.setNome(nome);
         p.setValor(new BigDecimal("10.00"));
-        p.setQuantidadeEstoque(5);
+        p.setQuantidadeEstoque(new BigDecimal("5"));
         p.setTipo(TipoProduto.R);
         return p;
     }

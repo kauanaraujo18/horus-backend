@@ -57,13 +57,13 @@ public class ProducaoService {
     // CALCULAR (preview — não altera nenhum estoque)
     // ═══════════════════════════════════════════════════════════════════════
 
-    public ProducaoCalculoDTO calcular(Long codProduto, Integer quantidade, Long empresaId) {
+    public ProducaoCalculoDTO calcular(Long codProduto, BigDecimal quantidade, Long empresaId) {
         ProdutoEntity produto = buscarProdutoValidado(codProduto, empresaId);
-        if (quantidade == null || quantidade <= 0)
+        if (quantidade == null || quantidade.signum() <= 0)
             throw new IllegalArgumentException("A quantidade a produzir deve ser maior que zero.");
 
         Map<Long, BigDecimal> mpNecessarios = new LinkedHashMap<>();
-        resolverInsumos(produto, new BigDecimal(quantidade), mpNecessarios, new HashSet<>());
+        resolverInsumos(produto, quantidade, mpNecessarios, new HashSet<>());
 
         if (mpNecessarios.isEmpty())
             throw new IllegalArgumentException(
@@ -77,8 +77,8 @@ public class ProducaoService {
             ProdutoEntity insumo = produtoRepository.findById(entry.getKey())
                     .orElseThrow(() -> new RuntimeException("Insumo ID " + entry.getKey() + " não encontrado."));
             BigDecimal necessaria = entry.getValue();
-            int disponivel = insumo.getQuantidadeEstoque() != null ? insumo.getQuantidadeEstoque() : 0;
-            boolean suficiente = new BigDecimal(disponivel).compareTo(necessaria) >= 0;
+            BigDecimal disponivel = nvl(insumo.getQuantidadeEstoque());
+            boolean suficiente = disponivel.compareTo(necessaria) >= 0;
             if (!suficiente) podeRealizar = false;
 
             insumos.add(new InsumoNecessarioDTO(
@@ -103,14 +103,14 @@ public class ProducaoService {
     // ═══════════════════════════════════════════════════════════════════════
 
     @Transactional
-    public ProducaoEntity realizarProducao(Long codProduto, Integer quantidade, Long empresaId) {
+    public ProducaoEntity realizarProducao(Long codProduto, BigDecimal quantidade, Long empresaId) {
         ProdutoEntity produto = buscarProdutoValidado(codProduto, empresaId);
-        if (quantidade == null || quantidade <= 0)
+        if (quantidade == null || quantidade.signum() <= 0)
             throw new IllegalArgumentException("A quantidade a produzir deve ser maior que zero.");
 
         // Resolve todos os MPs folha necessários
         Map<Long, BigDecimal> mpNecessarios = new LinkedHashMap<>();
-        resolverInsumos(produto, new BigDecimal(quantidade), mpNecessarios, new HashSet<>());
+        resolverInsumos(produto, quantidade, mpNecessarios, new HashSet<>());
 
         if (mpNecessarios.isEmpty())
             throw new IllegalArgumentException(
@@ -121,13 +121,12 @@ public class ProducaoService {
         for (Map.Entry<Long, BigDecimal> entry : mpNecessarios.entrySet()) {
             ProdutoEntity insumo = produtoRepository.findById(entry.getKey())
                     .orElseThrow(() -> new RuntimeException("Insumo ID " + entry.getKey() + " não encontrado."));
-            int disponivel = insumo.getQuantidadeEstoque() != null ? insumo.getQuantidadeEstoque() : 0;
+            BigDecimal disponivel = nvl(insumo.getQuantidadeEstoque());
             BigDecimal necessaria = entry.getValue();
-            if (new BigDecimal(disponivel).compareTo(necessaria) < 0) {
+            if (disponivel.compareTo(necessaria) < 0) {
                 throw new RuntimeException(String.format(
-                        "Estoque insuficiente do insumo '%s'. " +
-                        "Disponível: %d | Necessário: %.4f",
-                        insumo.getNome(), disponivel, necessaria));
+                        "Estoque insuficiente do insumo '%s'. Disponível: %s | Necessário: %s",
+                        insumo.getNome(), fmtQtd(disponivel), fmtQtd(necessaria)));
             }
             insumosCachados.add(insumo);
         }
@@ -148,8 +147,11 @@ public class ProducaoService {
             BigDecimal necessaria = entry.getValue();
 
             // Consumo é SAÍDA: reduz quantidade e não altera o custo médio do insumo.
-            insumo.setQuantidadeEstoque(
-                    insumo.getQuantidadeEstoque() - necessaria.intValue());
+            // A quantidade entra INTEIRA (0,350 kg continua 0,350 kg) — era aqui que
+            // o .intValue() zerava o consumo fracionário e corroía o estoque.
+            insumo.setQuantidadeEstoque(nvl(insumo.getQuantidadeEstoque())
+                    .subtract(necessaria)
+                    .setScale(CusteioService.ESCALA_QUANTIDADE, RoundingMode.HALF_UP));
             produtoRepository.save(insumo);
 
             BigDecimal custoInsumo = tabela.custoUnitario(insumo.getCodProduto());
@@ -165,7 +167,7 @@ public class ProducaoService {
 
         custoTotalProducao = custoTotalProducao.setScale(2, RoundingMode.HALF_UP);
         BigDecimal custoUnitarioProduzido = custoTotalProducao
-                .divide(new BigDecimal(quantidade), 4, RoundingMode.HALF_UP);
+                .divide(quantidade, 4, RoundingMode.HALF_UP);
         producao.setCustoTotal(custoTotalProducao);
         producao.setCustoUnitario(custoUnitarioProduzido);
 
@@ -174,7 +176,7 @@ public class ProducaoService {
         // ── Credita o PF/MPPF produzido pelo custo real do que foi consumido ──
         // É aqui que a produção deixa de ser só movimento de quantidade e passa a
         // transportar valor: o custo dos insumos vira o custo do produto acabado.
-        custeioService.registrarEntrada(produto, empresaId, new BigDecimal(quantidade),
+        custeioService.registrarEntrada(produto, empresaId, quantidade,
                 custoUnitarioProduzido, OrigemEntradaEstoque.PRODUCAO, salva.getCodProducao(),
                 LocalDate.now(), "Produção #" + salva.getCodProducao() + " - " + produto.getNome());
 
@@ -197,7 +199,7 @@ public class ProducaoService {
         // valor que nunca foi pago; por isso o snapshot em producao_item.
         for (ProducaoItemEntity item : producao.getItensConsumidos()) {
             ProdutoEntity insumo = item.getInsumo();
-            BigDecimal devolvida = new BigDecimal(item.getQuantidadeConsumida().intValue());
+            BigDecimal devolvida = nvl(item.getQuantidadeConsumida());
             BigDecimal custoSnapshot = item.getCustoUnitario() != null
                     ? item.getCustoUnitario()
                     : (insumo.getCustoMedio() != null ? insumo.getCustoMedio() : BigDecimal.ZERO);
@@ -208,9 +210,9 @@ public class ProducaoService {
 
         // Retira do estoque do produto produzido — SAÍDA, não altera custo médio
         ProdutoEntity produto = producao.getProduto();
-        int estoqueAtual = produto.getQuantidadeEstoque() != null ? produto.getQuantidadeEstoque() : 0;
-        int novoEstoque  = estoqueAtual - producao.getQuantidadeProduzida();
-        produto.setQuantidadeEstoque(Math.max(0, novoEstoque)); // não vai negativo
+        BigDecimal novoEstoque = nvl(produto.getQuantidadeEstoque())
+                .subtract(nvl(producao.getQuantidadeProduzida()));
+        produto.setQuantidadeEstoque(novoEstoque.max(BigDecimal.ZERO)); // não vai negativo
         produtoRepository.save(produto);
 
         producao.setEstornada(true);
@@ -257,6 +259,13 @@ public class ProducaoService {
     // ═══════════════════════════════════════════════════════════════════════
     // VALIDAÇÕES INTERNAS
     // ═══════════════════════════════════════════════════════════════════════
+
+    private static BigDecimal nvl(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }
+
+    /** Quantidade legível: "0,35" em vez de "0,3500". */
+    private static String fmtQtd(BigDecimal v) {
+        return nvl(v).stripTrailingZeros().toPlainString();
+    }
 
     private ProdutoEntity buscarProdutoValidado(Long codProduto, Long empresaId) {
         ProdutoEntity produto = produtoRepository.findByIdAndEmpresaId(codProduto, empresaId)

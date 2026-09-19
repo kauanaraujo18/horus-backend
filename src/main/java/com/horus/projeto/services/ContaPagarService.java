@@ -78,14 +78,15 @@ public class ContaPagarService {
                         .orElseThrow(() -> new RuntimeException(
                                 "Produto ID " + itemDTO.getCodProduto() + " não encontrado."));
 
-                if (itemDTO.getQuantidade() == null || itemDTO.getQuantidade() <= 0) {
+                if (itemDTO.getQuantidade() == null || itemDTO.getQuantidade().signum() <= 0) {
                     throw new IllegalArgumentException(
                             "Quantidade inválida para o produto: " + produto.getNome());
                 }
 
                 BigDecimal valorUnit = itemDTO.getValorUnitario() != null
                         ? itemDTO.getValorUnitario() : BigDecimal.ZERO;
-                BigDecimal totalItem = valorUnit.multiply(new BigDecimal(itemDTO.getQuantidade()));
+                BigDecimal totalItem = valorUnit.multiply(itemDTO.getQuantidade())
+                        .setScale(2, java.math.RoundingMode.HALF_UP);
 
                 ContaPagarItemEntity item = new ContaPagarItemEntity();
                 item.setContaPagar(conta);
@@ -101,7 +102,7 @@ public class ContaPagarService {
                 // O custo da entrada é o valor unitário da própria nota — é isto que
                 // faz o custo do produto refletir o que foi efetivamente pago por ele.
                 custeioService.registrarEntrada(produto, empresaId,
-                        new BigDecimal(itemDTO.getQuantidade()), valorUnit,
+                        itemDTO.getQuantidade(), valorUnit,
                         OrigemEntradaEstoque.COMPRA, null, LocalDate.now(),
                         "Compra: " + conta.getDescricao());
             }
@@ -155,7 +156,7 @@ public class ContaPagarService {
         for (ContaPagarItemEntity itemAntigo : conta.getItens()) {
             ProdutoEntity produto = itemAntigo.getProduto();
             produto.setQuantidadeEstoque(
-                    produto.getQuantidadeEstoque() - itemAntigo.getQuantidade());
+                    nvl(produto.getQuantidadeEstoque()).subtract(nvl(itemAntigo.getQuantidade())));
             produtoRepository.save(produto);
         }
 
@@ -181,12 +182,13 @@ public class ContaPagarService {
                         .orElseThrow(() -> new RuntimeException(
                                 "Produto ID " + itemDTO.getCodProduto() + " não encontrado."));
 
-                if (itemDTO.getQuantidade() == null || itemDTO.getQuantidade() <= 0)
+                if (itemDTO.getQuantidade() == null || itemDTO.getQuantidade().signum() <= 0)
                     throw new IllegalArgumentException("Quantidade inválida para: " + produto.getNome());
 
                 BigDecimal valorUnit = itemDTO.getValorUnitario() != null
                         ? itemDTO.getValorUnitario() : BigDecimal.ZERO;
-                BigDecimal totalItem = valorUnit.multiply(new BigDecimal(itemDTO.getQuantidade()));
+                BigDecimal totalItem = valorUnit.multiply(itemDTO.getQuantidade())
+                        .setScale(2, java.math.RoundingMode.HALF_UP);
 
                 ContaPagarItemEntity item = new ContaPagarItemEntity();
                 item.setContaPagar(conta);
@@ -198,7 +200,7 @@ public class ContaPagarService {
 
                 valorTotal = valorTotal.add(totalItem);
                 custeioService.registrarEntrada(produto, empresaId,
-                        new BigDecimal(itemDTO.getQuantidade()), valorUnit,
+                        itemDTO.getQuantidade(), valorUnit,
                         OrigemEntradaEstoque.COMPRA, conta.getCodContaPagar(), LocalDate.now(),
                         "Compra (edição): " + conta.getDescricao());
             }
@@ -267,8 +269,8 @@ public class ContaPagarService {
         // Fase 2: estorno de estoque
         for (ContaPagarItemEntity item : conta.getItens()) {
             ProdutoEntity produto = item.getProduto();
-            int novoEstoque = produto.getQuantidadeEstoque() - item.getQuantidade();
-            produto.setQuantidadeEstoque(Math.max(0, novoEstoque)); // não deixa negativo
+            BigDecimal novoEstoque = nvl(produto.getQuantidadeEstoque()).subtract(nvl(item.getQuantidade()));
+            produto.setQuantidadeEstoque(novoEstoque.max(BigDecimal.ZERO)); // não deixa negativo
             produtoRepository.save(produto);
         }
 
@@ -334,6 +336,8 @@ public class ContaPagarService {
     /* ------------------------------------------------------------------
        VALIDAÇÕES INTERNAS
        ------------------------------------------------------------------ */
+
+    private static BigDecimal nvl(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }
 
     private void validarDTO(ContaPagarRequestDTO dto) {
         if (dto.getDescricao() == null || dto.getDescricao().isBlank()) {

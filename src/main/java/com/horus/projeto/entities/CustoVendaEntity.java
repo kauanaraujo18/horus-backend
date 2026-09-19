@@ -63,7 +63,7 @@ public class CustoVendaEntity {
     @Column(name = "cod_classe")
     private Long codClasse;
 
-    @Column(nullable = false, precision = 15, scale = 4)
+    @Column(nullable = false, precision = 15, scale = 3)
     private BigDecimal quantidade;
 
     /** Custo unitário congelado no momento da venda. */

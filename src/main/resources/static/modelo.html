@@ -209,7 +209,7 @@
 
                             <div class="input-group col-span-1">
                                 <label for="produtoQuantidade">Estoque Inicial</label>
-                                <input type="number" id="produtoQuantidade" min="0" required placeholder="0">
+                                <input type="text" inputmode="decimal" id="produtoQuantidade" required placeholder="0">
                             </div>
 
                             <div class="input-group col-span-1">
@@ -336,7 +336,7 @@
                         <div class="prod-qtd-row">
                             <div class="input-group" style="width:160px;margin-bottom:0;">
                                 <label>Quantidade</label>
-                                <input type="number" id="prodQuantidade" min="1" value="1"
+                                <input type="text" inputmode="decimal" id="prodQuantidade" value="1"
                                     oninput="prodCalcularPreview()">
                             </div>
                             <button type="button" class="btn-secondary" onclick="prodCalcularPreview()">

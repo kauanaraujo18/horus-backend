@@ -46,21 +46,21 @@ class CustoMedioIntegrationTests {
     }
 
     private ProdutoEntity criarProduto(Long empresaId, String nome, TipoProduto tipo,
-                                       BigDecimal venda, BigDecimal custo, int estoque) {
+                                       BigDecimal venda, BigDecimal custo, String estoque) {
         ProdutoEntity p = new ProdutoEntity();
         p.setNome(nome);
         p.setTipo(tipo);
         p.setValor(venda);
         p.setValorCusto(custo);
-        p.setQuantidadeEstoque(estoque);
+        p.setQuantidadeEstoque(new BigDecimal(estoque));
         p.setEmpresa(empresaRepository.getReferenceById(empresaId));
         return produtoRepository.save(p);
     }
 
-    private ContaPagarRequestDTO compra(ProdutoEntity produto, int qtd, BigDecimal valorUnitario) {
+    private ContaPagarRequestDTO compra(ProdutoEntity produto, String qtd, BigDecimal valorUnitario) {
         ContaPagarItemDTO item = new ContaPagarItemDTO();
         item.setCodProduto(produto.getCodProduto());
-        item.setQuantidade(qtd);
+        item.setQuantidade(new BigDecimal(qtd));
         item.setValorUnitario(valorUnitario);
 
         ContaPagarParcelaDTO parcela = new ContaPagarParcelaDTO();
@@ -88,15 +88,15 @@ class CustoMedioIntegrationTests {
 
         // 10 unidades a R$ 5,00 em estoque
         ProdutoEntity p = criarProduto(empresaId, "TESTE-CMP-A", TipoProduto.R,
-                new BigDecimal("12.00"), new BigDecimal("5.00"), 10);
+                new BigDecimal("12.00"), new BigDecimal("5.00"), "10");
         custeioService.definirCustoManual(p, empresaId, new BigDecimal("5.00"));
         produtoRepository.save(p);
 
         // Compra 10 unidades a R$ 7,00  ->  (10×5 + 10×7) / 20 = 6,00
-        contaPagarService.salvar(compra(p, 10, new BigDecimal("7.00")), empresaId);
+        contaPagarService.salvar(compra(p, "10", new BigDecimal("7.00")), empresaId);
 
         ProdutoEntity depois = produtoRepository.findById(p.getCodProduto()).orElseThrow();
-        assertEquals(20, depois.getQuantidadeEstoque(), "estoque = 10 + 10");
+        assertEquals(0, new BigDecimal("20").compareTo(depois.getQuantidadeEstoque()), "estoque = 10 + 10");
         assertEquals(0, new BigDecimal("6.0000").compareTo(depois.getCustoMedio()),
                 "custo médio = (10×5 + 10×7) / 20 = 6,00");
     }
@@ -109,11 +109,11 @@ class CustoMedioIntegrationTests {
 
         // 90 a R$ 1,00 + 10 a R$ 11,00  ->  (90 + 110) / 100 = 2,00
         ProdutoEntity p = criarProduto(empresaId, "TESTE-CMP-B", TipoProduto.R,
-                new BigDecimal("20.00"), new BigDecimal("1.00"), 90);
+                new BigDecimal("20.00"), new BigDecimal("1.00"), "90");
         custeioService.definirCustoManual(p, empresaId, new BigDecimal("1.00"));
         produtoRepository.save(p);
 
-        contaPagarService.salvar(compra(p, 10, new BigDecimal("11.00")), empresaId);
+        contaPagarService.salvar(compra(p, "10", new BigDecimal("11.00")), empresaId);
 
         ProdutoEntity depois = produtoRepository.findById(p.getCodProduto()).orElseThrow();
         assertEquals(0, new BigDecimal("2.0000").compareTo(depois.getCustoMedio()),
@@ -128,9 +128,9 @@ class CustoMedioIntegrationTests {
 
         // Estoque histórico sem custo nenhum: a compra não pode ser diluída pela metade
         ProdutoEntity p = criarProduto(empresaId, "TESTE-CMP-C", TipoProduto.R,
-                new BigDecimal("15.00"), null, 10);
+                new BigDecimal("15.00"), null, "10");
 
-        contaPagarService.salvar(compra(p, 10, new BigDecimal("8.00")), empresaId);
+        contaPagarService.salvar(compra(p, "10", new BigDecimal("8.00")), empresaId);
 
         ProdutoEntity depois = produtoRepository.findById(p.getCodProduto()).orElseThrow();
         assertEquals(0, new BigDecimal("8.0000").compareTo(depois.getCustoMedio()),
@@ -148,13 +148,13 @@ class CustoMedioIntegrationTests {
         if (empresaId == null) return;
 
         ProdutoEntity p = criarProduto(empresaId, "TESTE-CMP-D", TipoProduto.R,
-                new BigDecimal("20.00"), new BigDecimal("6.00"), 50);
+                new BigDecimal("20.00"), new BigDecimal("6.00"), "50");
         custeioService.definirCustoManual(p, empresaId, new BigDecimal("6.00"));
         produtoRepository.save(p);
 
         ItemVendaDTO item = new ItemVendaDTO();
         item.setCodProduto(p.getCodProduto());
-        item.setQuantidade(10);
+        item.setQuantidade(new BigDecimal("10"));
         VendaRequestDTO dto = new VendaRequestDTO();
         dto.setItens(List.of(item));
         dto.setDataVenda(LocalDate.now());
@@ -162,7 +162,7 @@ class CustoMedioIntegrationTests {
         vendaService.registrarVenda(dto, empresaId);
 
         ProdutoEntity depois = produtoRepository.findById(p.getCodProduto()).orElseThrow();
-        assertEquals(40, depois.getQuantidadeEstoque(), "a venda reduz a quantidade");
+        assertEquals(0, new BigDecimal("40").compareTo(depois.getQuantidadeEstoque()), "a venda reduz a quantidade");
         assertEquals(0, new BigDecimal("6.0000").compareTo(depois.getCustoMedio()),
                 "saída NÃO pode alterar o custo médio — essa é a definição do método");
     }
@@ -178,13 +178,13 @@ class CustoMedioIntegrationTests {
         if (empresaId == null) return;
 
         ProdutoEntity p = criarProduto(empresaId, "TESTE-CMP-E", TipoProduto.R,
-                new BigDecimal("20.00"), new BigDecimal("6.00"), 50);
+                new BigDecimal("20.00"), new BigDecimal("6.00"), "50");
         custeioService.definirCustoManual(p, empresaId, new BigDecimal("6.00"));
         produtoRepository.save(p);
 
         ItemVendaDTO item = new ItemVendaDTO();
         item.setCodProduto(p.getCodProduto());
-        item.setQuantidade(10);
+        item.setQuantidade(new BigDecimal("10"));
         VendaRequestDTO dto = new VendaRequestDTO();
         dto.setItens(List.of(item));
         dto.setDataVenda(LocalDate.now());
@@ -199,7 +199,7 @@ class CustoMedioIntegrationTests {
         vendaService.estornarVenda(venda.getCodVenda(), empresaId);
 
         ProdutoEntity depois = produtoRepository.findById(p.getCodProduto()).orElseThrow();
-        assertEquals(50, depois.getQuantidadeEstoque(), "o estoque volta ao que era");
+        assertEquals(0, new BigDecimal("50").compareTo(depois.getQuantidadeEstoque()), "o estoque volta ao que era");
         // (40×9 + 10×6) / 50 = 8,40 — a devolução entra pelo custo ORIGINAL (6,00)
         assertEquals(0, new BigDecimal("8.4000").compareTo(depois.getCustoMedio()),
                 "o item volta pelo custo com que saiu, não pelo custo de hoje");
@@ -216,35 +216,35 @@ class CustoMedioIntegrationTests {
         if (empresaId == null) return;
 
         ProdutoEntity insumoA = criarProduto(empresaId, "TESTE-MP-A", TipoProduto.MP,
-                BigDecimal.ZERO, new BigDecimal("2.00"), 100);
+                BigDecimal.ZERO, new BigDecimal("2.00"), "100");
         ProdutoEntity insumoB = criarProduto(empresaId, "TESTE-MP-B", TipoProduto.MP,
-                BigDecimal.ZERO, new BigDecimal("3.00"), 100);
+                BigDecimal.ZERO, new BigDecimal("3.00"), "100");
         custeioService.definirCustoManual(insumoA, empresaId, new BigDecimal("2.00"));
         custeioService.definirCustoManual(insumoB, empresaId, new BigDecimal("3.00"));
         produtoRepository.save(insumoA);
         produtoRepository.save(insumoB);
 
         ProdutoEntity pf = criarProduto(empresaId, "TESTE-PF", TipoProduto.PF,
-                new BigDecimal("30.00"), null, 0);
+                new BigDecimal("30.00"), null, "0");
 
         // Receita: 2 de A + 1 de B  ->  custo unitário = 2×2 + 1×3 = 7,00
         vincular(pf, insumoA, new BigDecimal("2"));
         vincular(pf, insumoB, new BigDecimal("1"));
 
-        ProducaoEntity producao = producaoService.realizarProducao(pf.getCodProduto(), 10, empresaId);
+        ProducaoEntity producao = producaoService.realizarProducao(pf.getCodProduto(), new BigDecimal("10"), empresaId);
 
         assertEquals(0, new BigDecimal("70.00").compareTo(producao.getCustoTotal()),
                 "custo total = 10 un × (2×2 + 1×3)");
         assertEquals(0, new BigDecimal("7.0000").compareTo(producao.getCustoUnitario()));
 
         ProdutoEntity pfDepois = produtoRepository.findById(pf.getCodProduto()).orElseThrow();
-        assertEquals(10, pfDepois.getQuantidadeEstoque());
+        assertEquals(0, new BigDecimal("10").compareTo(pfDepois.getQuantidadeEstoque()));
         assertEquals(0, new BigDecimal("7.0000").compareTo(pfDepois.getCustoMedio()),
                 "o produto acabado tem que nascer com o custo dos insumos consumidos");
 
         // Insumos: saída reduz quantidade e preserva custo
         ProdutoEntity aDepois = produtoRepository.findById(insumoA.getCodProduto()).orElseThrow();
-        assertEquals(80, aDepois.getQuantidadeEstoque(), "consumiu 2 × 10");
+        assertEquals(0, new BigDecimal("80").compareTo(aDepois.getQuantidadeEstoque()), "consumiu 2 × 10");
         assertEquals(0, new BigDecimal("2.0000").compareTo(aDepois.getCustoMedio()));
     }
 
@@ -255,22 +255,23 @@ class CustoMedioIntegrationTests {
         if (empresaId == null) return;
 
         ProdutoEntity insumo = criarProduto(empresaId, "TESTE-MP-S", TipoProduto.MP,
-                BigDecimal.ZERO, new BigDecimal("4.00"), 100);
+                BigDecimal.ZERO, new BigDecimal("4.00"), "100");
         custeioService.definirCustoManual(insumo, empresaId, new BigDecimal("4.00"));
         produtoRepository.save(insumo);
 
         ProdutoEntity pf = criarProduto(empresaId, "TESTE-PF-S", TipoProduto.PF,
-                new BigDecimal("50.00"), null, 0);
+                new BigDecimal("50.00"), null, "0");
         vincular(pf, insumo, new BigDecimal("5"));
 
-        ProducaoEntity producao = producaoService.realizarProducao(pf.getCodProduto(), 10, empresaId);
-        assertEquals(50, produtoRepository.findById(insumo.getCodProduto())
-                .orElseThrow().getQuantidadeEstoque(), "consumiu 5 × 10");
+        ProducaoEntity producao = producaoService.realizarProducao(pf.getCodProduto(), new BigDecimal("10"), empresaId);
+        assertEquals(0, new BigDecimal("50").compareTo(produtoRepository
+                .findById(insumo.getCodProduto()).orElseThrow().getQuantidadeEstoque()),
+                "consumiu 5 × 10");
 
         producaoService.estornar(producao.getCodProducao(), empresaId);
 
         ProdutoEntity depois = produtoRepository.findById(insumo.getCodProduto()).orElseThrow();
-        assertEquals(100, depois.getQuantidadeEstoque(), "insumo devolvido integralmente");
+        assertEquals(0, new BigDecimal("100").compareTo(depois.getQuantidadeEstoque()), "insumo devolvido integralmente");
         assertEquals(0, new BigDecimal("4.0000").compareTo(depois.getCustoMedio()),
                 "devolver pelo custo do snapshot mantém o custo médio estável");
     }
@@ -285,6 +286,90 @@ class CustoMedioIntegrationTests {
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    // 4b. ESTOQUE DECIMAL — consumo fracionário de insumo
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * O bug que motivou o estoque decimal: a produção fazia .intValue() na
+     * quantidade consumida, então 0,350 kg de farinha dava baixa de ZERO.
+     * Produzir 10 pães não tirava nada do estoque de farinha.
+     */
+    @Test
+    @Transactional
+    void producaoConsomeQuantidadeFracionariaDeInsumo() {
+        Long empresaId = empresaId();
+        if (empresaId == null) return;
+
+        ProdutoEntity farinha = criarProduto(empresaId, "TESTE-FARINHA", TipoProduto.MP,
+                BigDecimal.ZERO, new BigDecimal("4.00"), "100");
+        custeioService.definirCustoManual(farinha, empresaId, new BigDecimal("4.00"));
+        produtoRepository.save(farinha);
+
+        ProdutoEntity pao = criarProduto(empresaId, "TESTE-PAO", TipoProduto.PF,
+                new BigDecimal("2.00"), null, "0");
+        vincular(pao, farinha, new BigDecimal("0.350")); // 350 g por unidade
+
+        producaoService.realizarProducao(pao.getCodProduto(), new BigDecimal("10"), empresaId);
+
+        ProdutoEntity depois = produtoRepository.findById(farinha.getCodProduto()).orElseThrow();
+        assertEquals(0, new BigDecimal("96.500").compareTo(depois.getQuantidadeEstoque()),
+                "10 × 0,350 kg = 3,5 kg consumidos: 100 − 3,5 = 96,5 (antes o truncamento deixava 100)");
+
+        ProdutoEntity paoDepois = produtoRepository.findById(pao.getCodProduto()).orElseThrow();
+        assertEquals(0, new BigDecimal("1.4000").compareTo(paoDepois.getCustoMedio()),
+                "custo do pão = 0,350 kg × R$ 4,00 = R$ 1,40");
+    }
+
+    @Test
+    @Transactional
+    void estoqueGuardaTresCasasDecimais() {
+        Long empresaId = empresaId();
+        if (empresaId == null) return;
+
+        ProdutoEntity p = criarProduto(empresaId, "TESTE-DECIMAL", TipoProduto.MP,
+                BigDecimal.ZERO, new BigDecimal("10.00"), "0");
+
+        // Compra 1,250 kg — três casas têm que sobreviver à ida e volta do banco
+        contaPagarService.salvar(compra(p, "1.250", new BigDecimal("10.00")), empresaId);
+
+        ProdutoEntity depois = produtoRepository.findById(p.getCodProduto()).orElseThrow();
+        assertEquals(0, new BigDecimal("1.250").compareTo(depois.getQuantidadeEstoque()),
+                "1,250 kg não pode virar 1 nem 0");
+        assertEquals(3, depois.getQuantidadeEstoque().scale(), "escala do estoque é 3 casas");
+    }
+
+    @Test
+    @Transactional
+    void vendaFracionadaDebitaEstoqueCorreto() {
+        Long empresaId = empresaId();
+        if (empresaId == null) return;
+
+        ProdutoEntity queijo = criarProduto(empresaId, "TESTE-QUEIJO", TipoProduto.R,
+                new BigDecimal("60.00"), new BigDecimal("30.00"), "10");
+        custeioService.definirCustoManual(queijo, empresaId, new BigDecimal("30.00"));
+        produtoRepository.save(queijo);
+
+        ItemVendaDTO item = new ItemVendaDTO();
+        item.setCodProduto(queijo.getCodProduto());
+        item.setQuantidade(new BigDecimal("0.750")); // 750 g
+        VendaRequestDTO dto = new VendaRequestDTO();
+        dto.setItens(List.of(item));
+        dto.setDataVenda(LocalDate.now());
+        dto.setValorDinheiro(new BigDecimal("45.00"));
+        VendaEntity venda = vendaService.registrarVenda(dto, empresaId);
+
+        ProdutoEntity depois = produtoRepository.findById(queijo.getCodProduto()).orElseThrow();
+        assertEquals(0, new BigDecimal("9.250").compareTo(depois.getQuantidadeEstoque()),
+                "10 − 0,750 = 9,250");
+        assertEquals(0, new BigDecimal("45.00").compareTo(venda.getValorTotal()),
+                "0,750 × R$ 60,00 = R$ 45,00");
+
+        var cmv = custeioService.custosDaVenda(venda.getCodVenda());
+        assertEquals(0, new BigDecimal("30.0000").compareTo(cmv.get(queijo.getCodProduto())),
+                "o CMV usa o custo por unidade de medida, não por peça");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     // 5. Cascata de resolução e auditoria
     // ═══════════════════════════════════════════════════════════════════
 
@@ -295,12 +380,12 @@ class CustoMedioIntegrationTests {
         if (empresaId == null) return;
 
         ProdutoEntity insumo = criarProduto(empresaId, "TESTE-MP-R", TipoProduto.MP,
-                BigDecimal.ZERO, new BigDecimal("10.00"), 100);
+                BigDecimal.ZERO, new BigDecimal("10.00"), "100");
         custeioService.definirCustoManual(insumo, empresaId, new BigDecimal("10.00"));
         produtoRepository.save(insumo);
 
         ProdutoEntity pf = criarProduto(empresaId, "TESTE-PF-R", TipoProduto.PF,
-                new BigDecimal("99.00"), new BigDecimal("1.00"), 0);
+                new BigDecimal("99.00"), new BigDecimal("1.00"), "0");
         vincular(pf, insumo, new BigDecimal("3")); // BOM diria 30,00
 
         // Sem custo médio: vale a composição (3 × 10 = 30), não o valor_custo (1,00)
@@ -325,11 +410,11 @@ class CustoMedioIntegrationTests {
         if (empresaId == null) return;
 
         ProdutoEntity p = criarProduto(empresaId, "TESTE-CMP-H", TipoProduto.R,
-                new BigDecimal("12.00"), new BigDecimal("5.00"), 10);
+                new BigDecimal("12.00"), new BigDecimal("5.00"), "10");
         custeioService.definirCustoManual(p, empresaId, new BigDecimal("5.00"));
         produtoRepository.save(p);
 
-        contaPagarService.salvar(compra(p, 10, new BigDecimal("7.00")), empresaId);
+        contaPagarService.salvar(compra(p, "10", new BigDecimal("7.00")), empresaId);
 
         List<ProdutoCustoHistoricoEntity> historico =
                 custeioService.historicoCusto(empresaId, p.getCodProduto());
@@ -357,16 +442,16 @@ class CustoMedioIntegrationTests {
         if (empresaId == null) return;
 
         ProdutoEntity p = criarProduto(empresaId, "TESTE-CMP-I", TipoProduto.R,
-                new BigDecimal("20.00"), new BigDecimal("5.00"), 10);
+                new BigDecimal("20.00"), new BigDecimal("5.00"), "10");
         custeioService.definirCustoManual(p, empresaId, new BigDecimal("5.00"));
         produtoRepository.save(p);
 
         // Compra encarece o custo médio para 6,00
-        contaPagarService.salvar(compra(p, 10, new BigDecimal("7.00")), empresaId);
+        contaPagarService.salvar(compra(p, "10", new BigDecimal("7.00")), empresaId);
 
         ItemVendaDTO item = new ItemVendaDTO();
         item.setCodProduto(p.getCodProduto());
-        item.setQuantidade(5);
+        item.setQuantidade(new BigDecimal("5"));
         VendaRequestDTO dto = new VendaRequestDTO();
         dto.setItens(List.of(item));
         dto.setDataVenda(LocalDate.now());

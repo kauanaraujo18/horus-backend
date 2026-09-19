@@ -93,16 +93,22 @@ public class VendaService {
                 }
 
                 // PF, MPPF e R: todos debitam do próprio estoque
-                int estoqueAtual   = produto.getQuantidadeEstoque() != null ? produto.getQuantidadeEstoque() : 0;
-                int qtdSolicitada  = itemDTO.getQuantidade();
+                BigDecimal estoqueAtual  = nvl(produto.getQuantidadeEstoque());
+                BigDecimal qtdSolicitada = nvl(itemDTO.getQuantidade());
 
-                if (estoqueAtual < qtdSolicitada) {
+                if (qtdSolicitada.signum() <= 0) {
                     throw new RuntimeException(String.format(
-                            "Estoque insuficiente para '%s'. Disponível: %d | Solicitado: %d",
-                            produto.getNome(), estoqueAtual, qtdSolicitada));
+                            "Quantidade inválida para '%s'.", produto.getNome()));
                 }
 
-                produto.setQuantidadeEstoque(estoqueAtual - qtdSolicitada);
+                if (estoqueAtual.compareTo(qtdSolicitada) < 0) {
+                    throw new RuntimeException(String.format(
+                            "Estoque insuficiente para '%s'. Disponível: %s | Solicitado: %s",
+                            produto.getNome(), fmtQtd(estoqueAtual), fmtQtd(qtdSolicitada)));
+                }
+
+                // Saída: reduz a quantidade e não altera o custo médio.
+                produto.setQuantidadeEstoque(estoqueAtual.subtract(qtdSolicitada));
                 produtoRepository.save(produto);
 
                 // Monta item da venda
@@ -112,7 +118,8 @@ public class VendaService {
 
                 BigDecimal precoUnitario = produto.getValor() != null ? produto.getValor() : BigDecimal.ZERO;
                 item.setValorUnitario(precoUnitario);
-                BigDecimal subTotal = precoUnitario.multiply(new BigDecimal(qtdSolicitada));
+                BigDecimal subTotal = precoUnitario.multiply(qtdSolicitada)
+                        .setScale(2, java.math.RoundingMode.HALF_UP);
                 item.setValorTotalItem(subTotal);
                 item.setVenda(venda);
 
@@ -228,13 +235,13 @@ public class VendaService {
         for (ProdutoVendaEntity item : venda.getItens()) {
             ProdutoEntity produto = item.getProduto();
             if (produto == null) continue;
-            int qtd = item.getQuantidade() != null ? item.getQuantidade() : 0;
-            if (qtd <= 0) continue;
+            BigDecimal qtd = nvl(item.getQuantidade());
+            if (qtd.signum() <= 0) continue;
 
-            java.math.BigDecimal custoOriginal = custosOriginais.get(produto.getCodProduto());
+            BigDecimal custoOriginal = custosOriginais.get(produto.getCodProduto());
             if (custoOriginal == null) custoOriginal = produto.getCustoMedio(); // venda anterior ao CMV
 
-            custeioService.registrarEntrada(produto, empresaId, new java.math.BigDecimal(qtd),
+            custeioService.registrarEntrada(produto, empresaId, qtd,
                     custoOriginal, com.horus.projeto.enums.OrigemEntradaEstoque.ESTORNO_VENDA,
                     codVenda, java.time.LocalDate.now(), "Estorno da venda #" + codVenda);
         }
@@ -305,4 +312,9 @@ public class VendaService {
     }
 
     private static BigDecimal nvl(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }
+
+    /** Quantidade legível na mensagem de erro: "3" em vez de "3,000". */
+    private static String fmtQtd(BigDecimal v) {
+        return nvl(v).stripTrailingZeros().toPlainString();
+    }
 }

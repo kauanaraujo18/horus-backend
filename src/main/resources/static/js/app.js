@@ -482,6 +482,29 @@ function mascaraMoeda(input) {
     input.value = 'R$ ' + v;
 }
 
+/* ── Quantidade decimal (estoque com até 3 casas) ────────────────────── */
+
+/** Exibe quantidade sem zeros inúteis: 10 em vez de 10,000 — e 0,35 quando fracionada. */
+function formatarQuantidade(v) {
+    const n = Number(v);
+    if (!isFinite(n)) return '0';
+    return n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+}
+
+/** Lê quantidade digitada aceitando vírgula OU ponto como separador decimal. */
+function lerQuantidade(valor) {
+    if (valor === null || valor === undefined) return NaN;
+    const txt = String(valor).trim().replace(',', '.');
+    if (txt === '') return NaN;
+    const n = Number(txt);
+    return isFinite(n) ? n : NaN;
+}
+
+/** Arredonda para 3 casas, evitando ruído de ponto flutuante (0.1+0.2). */
+function arredondarQuantidade(n) {
+    return Math.round((Number(n) + Number.EPSILON) * 1000) / 1000;
+}
+
 function formatarMoeda(valor) {
     if (valor === null || valor === undefined) return "R$ 0,00";
     return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -782,7 +805,7 @@ function renderizarTabelaProdutos(lista) { // Mantive o nome original que a busc
 
     lista.forEach(prod => {
         const idReal = prod.id || prod.codProduto;
-        const estoqueAtual = prod.quantidadeEstoque || 0;
+        const estoqueAtual = Number(prod.quantidadeEstoque) || 0;
         const estoqueClass = estoqueAtual <= 5 ? 'low-stock' : ''; // Destaque visual se estiver acabando
 
         // Custo médio ponderado quando existe; senão o custo informado no cadastro.
@@ -821,7 +844,7 @@ function renderizarTabelaProdutos(lista) { // Mantive o nome original que a busc
             <div class="product-card-footer">
                 <div class="stock-status">
                     <span class="stock-label">Estoque atual:</span>
-                    <span class="stock-amount ${estoqueClass}" id="display_estoque_${idReal}">${estoqueAtual}</span>
+                    <span class="stock-amount ${estoqueClass}" id="display_estoque_${idReal}" data-estoque="${estoqueAtual}">${formatarQuantidade(estoqueAtual)}</span>
                 </div>
                 
                 <div class="stock-control-pill">
@@ -829,7 +852,7 @@ function renderizarTabelaProdutos(lista) { // Mantive o nome original que a busc
                         <i class="ph ph-minus"></i>
                     </button>
                     
-                    <input type="number" id="input_ajuste_${idReal}" placeholder="Qtd" min="1">
+                    <input type="text" inputmode="decimal" id="input_ajuste_${idReal}" placeholder="Qtd">
                     
                     <button onclick="ajustarEstoqueRapido(${idReal}, 'add')" title="Adicionar ao estoque">
                         <i class="ph ph-plus"></i>
@@ -848,19 +871,24 @@ async function ajustarEstoqueRapido(idProduto, operacao) {
     const displayEstoque = document.getElementById(`display_estoque_${idProduto}`);
     const inputAjuste = document.getElementById(`input_ajuste_${idProduto}`);
     
-    const estoqueAtual = parseInt(displayEstoque.innerText, 10);
-    const qtdMovimentar = parseInt(inputAjuste.value, 10) || 1; 
+    // Lê do data-attribute: o texto exibido está formatado em pt-BR (1.234,5)
+    const estoqueAtual = Number(displayEstoque.dataset.estoque) || 0;
+    const digitado = inputAjuste.value.trim();
+    // Campo vazio = movimenta 1. Campo com conteúdo inválido é ERRO, nunca 1 —
+    // silenciosamente movimentar a quantidade errada é pior que não movimentar.
+    const qtdMovimentar = digitado === '' ? 1 : lerQuantidade(digitado);
 
-    if (qtdMovimentar <= 0) {
-        alert("Digite uma quantidade válida.");
+    if (isNaN(qtdMovimentar) || qtdMovimentar <= 0) {
+        mostrarToast('Digite uma quantidade válida.', 'error');
         inputAjuste.value = '';
         return;
     }
 
-    let novoEstoque = (operacao === 'add') ? estoqueAtual + qtdMovimentar : estoqueAtual - qtdMovimentar;
+    let novoEstoque = arredondarQuantidade(
+        (operacao === 'add') ? estoqueAtual + qtdMovimentar : estoqueAtual - qtdMovimentar);
 
     if (novoEstoque < 0) {
-        alert(`Saldo insuficiente! Estoque atual: ${estoqueAtual}`);
+        mostrarToast(`Saldo insuficiente. Estoque atual: ${formatarQuantidade(estoqueAtual)}`, 'error');
         inputAjuste.value = '';
         return;
     }
@@ -1033,7 +1061,7 @@ async function handleSalvarProduto(e) {
     const btn = e.target.querySelector('button[type="submit"]');
     const txtOriginal = btn.innerHTML;
     const tipo = document.getElementById('produtoTipo').value;
-    const qtdEstoque = parseInt(document.getElementById('produtoQuantidade').value, 10) || 0;
+    const qtdEstoque = arredondarQuantidade(lerQuantidade(document.getElementById('produtoQuantidade').value) || 0);
     const unidadeMedida = document.getElementById('produtoUnidadeMedida').value || null;
     const referencia = document.getElementById('produtoReferencia').value || null;
     const valorCustoRaw = document.getElementById('produtoValorCusto').value;
@@ -1221,11 +1249,11 @@ async function abrirHistoricoCusto() {
             html += `<tr class="analitica">
                 <td class="dfc-col-nome"><strong>${data}</strong> · ${finEsc(rotulo)}
                     ${h.descricao ? `<div style="font-size:10.5px;color:var(--text-muted);">${finEsc(h.descricao)}</div>` : ''}</td>
-                <td>${Number(h.quantidadeAnterior) || 0}</td>
+                <td>${formatarQuantidade(h.quantidadeAnterior)}</td>
                 <td>${finMoeda(h.custoAnterior)}</td>
-                <td>${Number(h.quantidadeEntrada) || 0}</td>
+                <td>${formatarQuantidade(h.quantidadeEntrada)}</td>
                 <td>${finMoeda(h.custoEntrada)}</td>
-                <td>${Number(h.quantidadeNova) || 0}</td>
+                <td>${formatarQuantidade(h.quantidadeNova)}</td>
                 <td><strong>${finMoeda(h.custoNovo)}</strong> ${seta}</td>
             </tr>`;
         });
@@ -1340,7 +1368,7 @@ function adicionarAoCarrinhoPDV(produto, qtdAutomatica = null) {
     const index = carrinhoPDV.findIndex(item => item.codProduto == id);
 
     if (index >= 0) {
-        carrinhoPDV[index].quantidade += qtd;
+        carrinhoPDV[index].quantidade = arredondarQuantidade(carrinhoPDV[index].quantidade + qtd);
     } else {
         carrinhoPDV.push({
             codProduto: id,
@@ -1372,7 +1400,7 @@ function renderizarCarrinhoPDV() {
                 <span style="font-weight: 500;">${item.nome}</span>
                 ${item.quantidade > 1 ? '<br><small style="color:var(--success); font-size:10px;">Item agrupado</small>' : ''}
             </td>
-            <td class="align-center">${item.quantidade}</td>
+            <td class="align-center">${formatarQuantidade(item.quantidade)}</td>
             <td class="align-right">${formatarMoeda(item.valorUnitario)}</td>
             <td class="align-right" style="font-weight: 600;">${formatarMoeda(totalItem)}</td>
             <td class="align-center">
@@ -2834,7 +2862,7 @@ function cpRenderizarItens() {
         <tr>
             <td style="font-size:13px;">${item.nome}</td>
             <td class="align-center">
-                <input type="number" min="1" value="${item.quantidade}" style="width:60px;text-align:center;padding:4px 6px;border:1px solid var(--border-subtle);border-radius:4px;font-size:12px;"
+                <input type="text" inputmode="decimal" value="${formatarQuantidade(item.quantidade)}" style="width:70px;text-align:center;padding:4px 6px;border:1px solid var(--border-subtle);border-radius:4px;font-size:12px;"
                     onchange="cpAtualizarQuantidade(${idx}, this.value)">
             </td>
             <td class="align-right">
@@ -2853,7 +2881,9 @@ function cpRenderizarItens() {
 }
 
 function cpAtualizarQuantidade(idx, valor) {
-    cpItensAdicionados[idx].quantidade = Math.max(1, parseInt(valor) || 1);
+    // Compra aceita fração: 1,5 kg de farinha, 0,750 L de leite.
+    const qtd = arredondarQuantidade(lerQuantidade(valor));
+    cpItensAdicionados[idx].quantidade = (isNaN(qtd) || qtd <= 0) ? 1 : qtd;
     cpRenderizarItens();
 }
 
@@ -3281,7 +3311,7 @@ function prodLimparPreview() {
 async function prodCalcularPreview() {
     if (!prodProdutoSelecionado) { mostrarToast('Selecione um produto primeiro.', 'warning'); return; }
 
-    const qtd = parseInt(document.getElementById('prodQuantidade').value) || 0;
+    const qtd = arredondarQuantidade(lerQuantidade(document.getElementById('prodQuantidade').value) || 0);
     if (qtd <= 0) { mostrarToast('Informe uma quantidade válida.', 'warning'); return; }
 
     const btnCalc = document.querySelector('#prodStep2 button');
@@ -3322,7 +3352,7 @@ function prodRenderizarPreview(calculo) {
         <div class="prod-preview-row">
             <div style="font-weight:500;">${ins.nomeInsumo}</div>
             <div class="align-right" style="font-size:12px;">${necessaria}</div>
-            <div class="align-right" style="font-size:12px;">${ins.quantidadeDisponivel}</div>
+            <div class="align-right" style="font-size:12px;">${formatarQuantidade(ins.quantidadeDisponivel)}</div>
             <div class="align-center">${badge}</div>
         </div>`;
     }).join('');
@@ -3364,7 +3394,7 @@ function prodRenderizarPreview(calculo) {
     btnConfirmar.style.opacity = calculo.podeRealizar ? '1' : '0.5';
 
     document.getElementById('prodResumoFinal').innerHTML =
-        `Produzir <strong>${calculo.quantidadeSolicitada}</strong> unidade(s) de <strong>${calculo.nomeProduto}</strong>`;
+        `Produzir <strong>${formatarQuantidade(calculo.quantidadeSolicitada)}</strong> unidade(s) de <strong>${calculo.nomeProduto}</strong>`;
 }
 
 /* ── Confirmar produção ──────────────────────────────────────────────── */
@@ -3372,8 +3402,8 @@ async function prodConfirmar() {
     if (!prodCalculoAtual || !prodCalculoAtual.podeRealizar) {
         mostrarToast('Verifique os insumos antes de confirmar.', 'warning'); return;
     }
-    const qtd = parseInt(document.getElementById('prodQuantidade').value) || 0;
-    if (!confirm(`Confirmar a produção de ${qtd} unidade(s) de "${prodCalculoAtual.nomeProduto}"?\n\nOs insumos serão debitados do estoque.`)) return;
+    const qtd = arredondarQuantidade(lerQuantidade(document.getElementById('prodQuantidade').value) || 0);
+    if (!confirm(`Confirmar a produção de ${formatarQuantidade(qtd)} unidade(s) de "${prodCalculoAtual.nomeProduto}"?\n\nOs insumos serão debitados do estoque.`)) return;
 
     const btn = document.getElementById('btnConfirmarProducao');
     const txtOrig = btn.innerHTML;
@@ -3388,7 +3418,7 @@ async function prodConfirmar() {
         });
         const body = await res.json();
         if (res.ok) {
-            mostrarToast(`${qtd} unidade(s) de "${prodCalculoAtual.nomeProduto}" produzidas com sucesso!`, 'success');
+            mostrarToast(`${formatarQuantidade(qtd)} unidade(s) de "${prodCalculoAtual.nomeProduto}" produzidas com sucesso!`, 'success');
             prodNavegar('historico');
             prodCarregarHistorico();
         } else {
@@ -3894,7 +3924,7 @@ function finRenderDre(dre) {
             const negativo = Number(p.lucroBruto) < 0 ? ' style="color:var(--danger);"' : '';
             html += `<tr class="analitica">
                 <td class="dfc-col-nome">${finEsc(p.nome || '—')}${alerta}</td>
-                <td>${Number(p.quantidade) || 0}</td>
+                <td>${formatarQuantidade(p.quantidade)}</td>
                 <td>${finMoeda(p.receita)}</td>
                 <td>${finMoeda(p.cmv)}</td>
                 <td${negativo}>${finMoeda(p.lucroBruto)}</td>
@@ -3953,7 +3983,7 @@ async function finDiagnosticoCusteio() {
         } else {
             html += `<table class="dfc-grid"><thead><tr><th class="dfc-col-nome">Produto</th><th>Qtd vendida</th><th>Ocorrências</th></tr></thead><tbody>`;
             vendidos.forEach(p => {
-                html += `<tr class="analitica"><td class="dfc-col-nome">${finEsc(p.nome || ('#' + p.codProduto))}</td><td>${Number(p.quantidadeVendida) || 0}</td><td>${p.ocorrencias ?? 0}</td></tr>`;
+                html += `<tr class="analitica"><td class="dfc-col-nome">${finEsc(p.nome || ('#' + p.codProduto))}</td><td>${formatarQuantidade(p.quantidadeVendida)}</td><td>${p.ocorrencias ?? 0}</td></tr>`;
             });
             html += `</tbody></table>`;
         }

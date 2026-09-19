@@ -42,21 +42,21 @@ public class ProdutoCustoHistoricoEntity {
     private Long codProduto;
 
     // ── Situação ANTES da entrada ────────────────────────────────────────
-    @Column(name = "quantidade_anterior", nullable = false, precision = 15, scale = 4)
+    @Column(name = "quantidade_anterior", nullable = false, precision = 15, scale = 3)
     private BigDecimal quantidadeAnterior;
 
     @Column(name = "custo_anterior", nullable = false, precision = 15, scale = 4)
     private BigDecimal custoAnterior;
 
     // ── O que entrou ─────────────────────────────────────────────────────
-    @Column(name = "quantidade_entrada", nullable = false, precision = 15, scale = 4)
+    @Column(name = "quantidade_entrada", nullable = false, precision = 15, scale = 3)
     private BigDecimal quantidadeEntrada;
 
     @Column(name = "custo_entrada", nullable = false, precision = 15, scale = 4)
     private BigDecimal custoEntrada;
 
     // ── Resultado da ponderação ──────────────────────────────────────────
-    @Column(name = "quantidade_nova", nullable = false, precision = 15, scale = 4)
+    @Column(name = "quantidade_nova", nullable = false, precision = 15, scale = 3)
     private BigDecimal quantidadeNova;
 
     @Column(name = "custo_novo", nullable = false, precision = 15, scale = 4)

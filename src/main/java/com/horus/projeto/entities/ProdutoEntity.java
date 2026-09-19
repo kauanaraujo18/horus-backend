@@ -52,8 +52,13 @@ public class ProdutoEntity implements Serializable {
     @Column(name = "custo_medio", precision = 15, scale = 4)
     private BigDecimal custoMedio;
 
-    @Column(name = "quantidade_estoque", nullable = false)
-    private Integer quantidadeEstoque;
+    /**
+     * Saldo em estoque. É DECIMAL porque insumo se consome fracionado:
+     * 0,350 kg de farinha, 1,5 L de leite, 2,25 m de tecido. Enquanto foi
+     * Integer, a produção truncava esse consumo e o estoque derivava do real.
+     */
+    @Column(name = "quantidade_estoque", nullable = false, precision = 15, scale = 3)
+    private BigDecimal quantidadeEstoque;
 
     @ManyToOne
     @JoinColumn(name = "empresa_id")
@@ -83,7 +88,7 @@ public class ProdutoEntity implements Serializable {
     @PrePersist
     public void prePersist() {
         if (this.quantidadeEstoque == null) {
-            this.quantidadeEstoque = 0;
+            this.quantidadeEstoque = BigDecimal.ZERO;
         }
         if (this.tipo == null) {
             this.tipo = TipoProduto.R;

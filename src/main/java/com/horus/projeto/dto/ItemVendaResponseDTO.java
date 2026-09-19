@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 public class ItemVendaResponseDTO {
     private String nome; // Nome do Produto
     private Long codProduto;
-    private Integer quantidade;
+    private BigDecimal quantidade;
     private BigDecimal valorUnitario;
     private BigDecimal valorTotalItem;
 
@@ -16,8 +16,8 @@ public class ItemVendaResponseDTO {
     public Long getCodProduto() { return codProduto; }
     public void setCodProduto(Long codProduto) { this.codProduto = codProduto; }
 
-    public Integer getQuantidade() { return quantidade; }
-    public void setQuantidade(Integer quantidade) { this.quantidade = quantidade; }
+    public BigDecimal getQuantidade() { return quantidade; }
+    public void setQuantidade(BigDecimal quantidade) { this.quantidade = quantidade; }
 
     public BigDecimal getValorUnitario() { return valorUnitario; }
     public void setValorUnitario(BigDecimal valorUnitario) { this.valorUnitario = valorUnitario; }

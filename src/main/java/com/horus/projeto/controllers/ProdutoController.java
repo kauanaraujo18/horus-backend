@@ -90,14 +90,26 @@ public class ProdutoController {
         }
     }
 
+    /**
+     * Ajuste direto do saldo em estoque (botões +/− da tela de produtos).
+     * Aceita valor decimal — o estoque é NUMERIC(15,3).
+     *
+     * Ajuste manual não recalcula custo médio: como não há custo informado para a
+     * quantidade que entra, manter o custo atual é o tratamento correto (entrar
+     * pelo próprio custo médio deixa a média inalterada).
+     */
     @PatchMapping("/{id}")
-    public ResponseEntity<ProdutoEntity> atualizarEstoqueParcial(@PathVariable Long id, @RequestBody Map<String, Integer> payload) {
+    public ResponseEntity<ProdutoEntity> atualizarEstoqueParcial(@PathVariable Long id,
+                                                                 @RequestBody Map<String, java.math.BigDecimal> payload) {
         try {
             // Usa o método blindado do service que já garante a posse da empresa
             ProdutoEntity produtoExistente = service.buscarPorId(id, getEmpresaIdLogada());
 
-            if (payload.containsKey("quantidadeEstoque")) {
-                produtoExistente.setQuantidadeEstoque(payload.get("quantidadeEstoque"));
+            java.math.BigDecimal novoSaldo = payload.get("quantidadeEstoque");
+            if (novoSaldo != null) {
+                if (novoSaldo.signum() < 0) return ResponseEntity.badRequest().build();
+                produtoExistente.setQuantidadeEstoque(
+                        novoSaldo.setScale(3, java.math.RoundingMode.HALF_UP));
                 ProdutoEntity produtoAtualizado = repository.save(produtoExistente);
                 return ResponseEntity.ok(produtoAtualizado);
             }

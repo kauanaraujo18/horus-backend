@@ -2,6 +2,7 @@ package com.horus.projeto.entities;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -32,8 +33,9 @@ public class ProducaoEntity {
     @JoinColumn(name = "cod_produto", nullable = false)
     private ProdutoEntity produto;
 
-    @Column(name = "quantidade_produzida", nullable = false)
-    private Integer quantidadeProduzida;
+    /** Quantidade produzida — decimal (ex.: 2,5 kg de massa). */
+    @Column(name = "quantidade_produzida", nullable = false, precision = 15, scale = 3)
+    private BigDecimal quantidadeProduzida;
 
     @Column(name = "data_producao", nullable = false, updatable = false)
     private LocalDateTime dataProducao;

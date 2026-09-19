@@ -31,8 +31,9 @@ public class ContaPagarItemEntity {
     @JoinColumn(name = "cod_produto", nullable = false)
     private ProdutoEntity produto;
 
-    @Column(nullable = false)
-    private Integer quantidade;
+    /** Quantidade comprada — decimal (ex.: 1,5 kg, 0,750 L). */
+    @Column(nullable = false, precision = 15, scale = 3)
+    private BigDecimal quantidade;
 
     @Column(name = "valor_unitario", nullable = false)
     private BigDecimal valorUnitario;

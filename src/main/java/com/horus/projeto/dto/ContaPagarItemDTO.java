@@ -11,6 +11,6 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class ContaPagarItemDTO {
     private Long codProduto;
-    private Integer quantidade;
+    private BigDecimal quantidade;
     private BigDecimal valorUnitario;
 }

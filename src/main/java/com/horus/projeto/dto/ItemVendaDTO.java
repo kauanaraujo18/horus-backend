@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 public class ItemVendaDTO {
     
     private Long codProduto;
-    private Integer quantidade;
+    private BigDecimal quantidade;
     private BigDecimal valorUnitario;
 
     // --- SALVA-VIDAS: Getters Manuais ---
@@ -27,11 +27,11 @@ public class ItemVendaDTO {
         this.codProduto = codProduto;
     }
 
-    public Integer getQuantidade() {
+    public BigDecimal getQuantidade() {
         return quantidade;
     }
 
-    public void setQuantidade(Integer quantidade) {
+    public void setQuantidade(BigDecimal quantidade) {
         this.quantidade = quantidade;
     }
 

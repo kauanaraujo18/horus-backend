@@ -66,7 +66,7 @@ class CmvDreIntegrationTests {
 
         ProdutoEntity produto = produtoRepository.findByEmpresaId(empresaId).stream()
                 .filter(p -> p.getTipo() == TipoProduto.R || p.getTipo() == TipoProduto.PF)
-                .filter(p -> p.getQuantidadeEstoque() != null && p.getQuantidadeEstoque() > 0)
+                .filter(p -> p.getQuantidadeEstoque() != null && p.getQuantidadeEstoque().signum() > 0)
                 .findFirst().orElse(null);
         if (produto == null) return;
 
@@ -74,7 +74,7 @@ class CmvDreIntegrationTests {
 
         ItemVendaDTO item = new ItemVendaDTO();
         item.setCodProduto(produto.getCodProduto());
-        item.setQuantidade(1);
+        item.setQuantidade(BigDecimal.ONE);
 
         VendaRequestDTO dto = new VendaRequestDTO();
         dto.setItens(List.of(item));
@@ -89,7 +89,7 @@ class CmvDreIntegrationTests {
         CustoVendaEntity linha = cmv.get(0);
         assertEquals(0, custoEsperado.compareTo(linha.getCustoUnitario()),
                 "o custo unitário gravado deve ser o custo vigente no ato da venda");
-        assertEquals(0, custoEsperado.multiply(BigDecimal.ONE).setScale(2, java.math.RoundingMode.HALF_UP)
+        assertEquals(0, custoEsperado.setScale(2, java.math.RoundingMode.HALF_UP)
                 .compareTo(linha.getCustoTotal()), "custoTotal = quantidade × custoUnitario");
         assertEquals(venda.getDataVenda().toLocalDate(), linha.getDataMovimento(),
                 "a competência do CMV é a data da venda");
@@ -108,7 +108,7 @@ class CmvDreIntegrationTests {
 
         ProdutoEntity produto = produtoRepository.findByEmpresaId(empresaId).stream()
                 .filter(p -> p.getTipo() == TipoProduto.R || p.getTipo() == TipoProduto.PF)
-                .filter(p -> p.getQuantidadeEstoque() != null && p.getQuantidadeEstoque() > 0)
+                .filter(p -> p.getQuantidadeEstoque() != null && p.getQuantidadeEstoque().signum() > 0)
                 .findFirst().orElse(null);
         if (produto == null) return;
 
@@ -116,7 +116,7 @@ class CmvDreIntegrationTests {
 
         ItemVendaDTO item = new ItemVendaDTO();
         item.setCodProduto(produto.getCodProduto());
-        item.setQuantidade(1);
+        item.setQuantidade(BigDecimal.ONE);
         VendaRequestDTO dto = new VendaRequestDTO();
         dto.setItens(List.of(item));
         dto.setDataVenda(LocalDate.now());
@@ -150,13 +150,13 @@ class CmvDreIntegrationTests {
 
         ProdutoEntity produto = produtoRepository.findByEmpresaId(empresaId).stream()
                 .filter(p -> p.getTipo() == TipoProduto.R || p.getTipo() == TipoProduto.PF)
-                .filter(p -> p.getQuantidadeEstoque() != null && p.getQuantidadeEstoque() > 0)
+                .filter(p -> p.getQuantidadeEstoque() != null && p.getQuantidadeEstoque().signum() > 0)
                 .findFirst().orElse(null);
         if (produto == null) return;
 
         ItemVendaDTO item = new ItemVendaDTO();
         item.setCodProduto(produto.getCodProduto());
-        item.setQuantidade(1);
+        item.setQuantidade(BigDecimal.ONE);
         VendaRequestDTO dto = new VendaRequestDTO();
         dto.setItens(List.of(item));
         dto.setDataVenda(LocalDate.now());
