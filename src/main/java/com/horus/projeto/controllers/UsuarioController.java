@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -55,6 +56,46 @@ public class UsuarioController {
             log.warn("Falha de autenticação para o login informado.");
             return ResponseEntity.status(401).body("Usuário ou senha incorretos.");
         }
+    }
+
+    /**
+     * Sessão atual. Só responde 200 se o token ainda for válido — o frontend usa
+     * isto no boot para decidir entre abrir o workspace ou a tela de login.
+     *
+     * Antes disso o frontend só olhava se HAVIA token no localStorage, nunca se
+     * ele ainda valia: o app abria no workspace com um token expirado, mostrando
+     * o último usuário e sem conseguir carregar nada.
+     *
+     * Devolve os dados de identificação do SERVIDOR, não do localStorage, então
+     * nome de usuário e empresa nunca ficam defasados.
+     */
+    @GetMapping("/api/auth/me")
+    public ResponseEntity<?> sessaoAtual() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof UsuarioEntity usuario)) {
+            return ResponseEntity.status(401).body(java.util.Map.of("erro", "Sessão inválida."));
+        }
+
+        String nome = (usuario.getNome() != null && !usuario.getNome().isBlank())
+                ? usuario.getNome() : usuario.getLogin();
+        String empresaNome = "Horus Workspace";
+        Long empresaId = null;
+        if (usuario.getEmpresa() != null) {
+            empresaId = usuario.getEmpresa().getId();
+            if (usuario.getEmpresa().getRazaoSocial() != null)
+                empresaNome = usuario.getEmpresa().getRazaoSocial();
+        }
+
+        var resposta = new java.util.LinkedHashMap<String, Object>();
+        resposta.put("login", usuario.getLogin());
+        resposta.put("nome", nome);
+        resposta.put("perfil", usuario.getPerfil());
+        resposta.put("empresaId", empresaId);
+        resposta.put("empresaNome", empresaNome);
+        resposta.put("permissoes", usuario.getPermissoes() == null ? java.util.List.of()
+                : usuario.getPermissoes().stream()
+                    .map(com.horus.projeto.entities.PermissaoEntity::getNome).sorted().toList());
+        return ResponseEntity.ok(resposta);
     }
 
     // ========================================================================

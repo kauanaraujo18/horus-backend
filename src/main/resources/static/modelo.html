@@ -30,15 +30,21 @@
                 <h1 class="login-title">Horus</h1>
                 <p class="login-subtitle">Acesso ao Workspace</p>
             </div>
-            <form id="formLogin" class="login-form" onsubmit="event.preventDefault(); realizarLoginVisual();">
+            <!-- action/method reais + name/autocomplete padronizados: é assim que o
+                 gerenciador de senhas do navegador reconhece o formulário e oferece salvar. -->
+            <form id="formLogin" class="login-form" method="post" action="/api/login"
+                  autocomplete="on" onsubmit="event.preventDefault(); realizarLoginVisual();">
                 <div class="input-group">
                     <label for="loginUsuario">Usuário</label>
-                    <input type="text" id="loginUsuario" placeholder="Seu usuário" autocomplete="off" required>
+                    <input type="text" id="loginUsuario" name="username" placeholder="Seu usuário"
+                           autocomplete="username" autocapitalize="none" spellcheck="false" required>
                 </div>
                 <div class="input-group">
                     <label for="loginSenha">Senha</label>
-                    <input type="password" id="loginSenha" placeholder="Sua senha" required>
+                    <input type="password" id="loginSenha" name="password" placeholder="Sua senha"
+                           autocomplete="current-password" required>
                 </div>
+                <div id="loginAviso" class="login-aviso" style="display:none;"></div>
                 <button type="submit" class="btn-primary btn-login-entrar">Entrar no sistema</button>
             </form>
         </div>

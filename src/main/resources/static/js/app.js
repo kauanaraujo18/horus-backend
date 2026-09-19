@@ -40,35 +40,149 @@ document.addEventListener('DOMContentLoaded', () => {
     setupContasPagarModule();
     setupProducaoModule();
     setupFinanceiroModule();
+
+    // 4. Marcação dos campos obrigatórios (roda por último: os módulos acima
+    //    podem ter ajustado o atributo `required` de algum campo)
+    marcarCamposObrigatorios();
 });
 
 /* ==========================================================================
    MÓDULO 1: GATEKEEPER & AUTENTICAÇÃO
    ========================================================================== */
-function setupLoginSystem() {
-    carregarIdentificacaoSessao();
-    const loginOverlay = document.getElementById('login-overlay');
-    const formLogin = document.getElementById('formLogin');
-    const btnLogout = document.querySelector('.btn-logout');
+const CHAVES_SESSAO = ['tokenHorus', 'horus_usuario_nome', 'horus_empresa_nome'];
 
-    // Força o bloqueio inicial (se não houver token válido guardado)
-    if (loginOverlay && !localStorage.getItem('tokenHorus')) {
-        loginOverlay.style.display = 'flex';
-    } else if (loginOverlay) {
-        // Se já tem token, remove o overlay suavemente
-        loginOverlay.classList.add('unlocked');
-        setTimeout(() => loginOverlay.style.display = 'none', 600);
+function limparSessao() {
+    CHAVES_SESSAO.forEach(k => localStorage.removeItem(k));
+    usuarioLogado = null;
+}
+
+/** Devolve a tela de login ao estado bloqueado, sem recarregar a página. */
+function mostrarLogin(aviso) {
+    const overlay = document.getElementById('login-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('unlocked');
+    overlay.style.display = 'flex';
+    document.querySelectorAll('.window').forEach(w => w.style.display = 'none');
+
+    const senha = document.getElementById('loginSenha');
+    if (senha) senha.value = '';
+    const caixaAviso = document.getElementById('loginAviso');
+    if (caixaAviso) {
+        caixaAviso.innerHTML = aviso
+            ? `<i class="ph ph-warning-circle"></i> ${finEsc(aviso)}` : '';
+        caixaAviso.style.display = aviso ? 'flex' : 'none';
     }
+    const usuario = document.getElementById('loginUsuario');
+    if (usuario && !usuario.value) usuario.focus();
+}
 
+function desbloquearWorkspace() {
+    const overlay = document.getElementById('login-overlay');
+    if (!overlay) return;
+    const aviso = document.getElementById('loginAviso');
+    if (aviso) { aviso.style.display = 'none'; aviso.innerHTML = ''; }
+    overlay.classList.add('unlocked');
+    setTimeout(() => overlay.style.display = 'none', 600);
+}
+
+/**
+ * Sessão expirada durante o uso: volta ao login em vez de deixar o workspace
+ * aberto respondendo erro em toda tela (o que obrigava a recarregar a página).
+ */
+let sessaoJaExpirada = false;
+function sessaoExpirada() {
+    if (sessaoJaExpirada) return;
+    sessaoJaExpirada = true;
+    limparSessao();
+    atualizarBadgeIdentificacao('—', '—');
+    mostrarLogin('Sua sessão expirou. Entre novamente para continuar.');
+}
+
+/**
+ * Intercepta 401/403 de qualquer chamada à API e devolve ao login.
+ * Feito uma vez sobre window.fetch para valer em todos os módulos — inclusive
+ * nos que forem escritos depois — sem tocar em cada ponto de chamada.
+ */
+function instalarInterceptorDeSessao() {
+    const fetchOriginal = window.fetch;
+    window.fetch = async function (...args) {
+        const resposta = await fetchOriginal.apply(this, args);
+        try {
+            const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || '';
+            // Endpoints de autenticação se explicam sozinhos: 401 em /login é senha
+            // errada, e 401 em /auth/me é a própria checagem de boot, já tratada em
+            // validarSessaoGuardada. Interceptar aqui só criaria disputa entre os dois.
+            const ehAutenticacao = url.includes('/api/login')
+                || url.includes('/api/auth/registro')
+                || url.includes('/api/auth/me');
+            const ehApi = url.includes('/api/');
+            if (ehApi && !ehAutenticacao && (resposta.status === 401 || resposta.status === 403)
+                && localStorage.getItem('tokenHorus')) {
+                sessaoExpirada();
+            }
+        } catch (_) { /* nunca deixar o interceptor quebrar a chamada */ }
+        return resposta;
+    };
+}
+
+/**
+ * Valida a sessão guardada ANTES de liberar o workspace.
+ *
+ * O token JWT expira em poucas horas; antes disto o boot só checava se existia
+ * token no localStorage, então o app abria direto na tela inicial com o último
+ * usuário da máquina e nada funcionava até recarregar. Agora o servidor é quem
+ * diz se a sessão vale — e os nomes exibidos vêm dele, nunca do cache local.
+ */
+async function validarSessaoGuardada() {
+    const token = localStorage.getItem('tokenHorus');
+    if (!token) { mostrarLogin(); return false; }
+
+    const overlay = document.getElementById('login-overlay');
+    if (overlay) { overlay.classList.remove('unlocked'); overlay.style.display = 'flex'; }
+    const btn = document.querySelector('.btn-login-entrar');
+    const textoBtn = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Verificando sessão...'; }
+
+    try {
+        const res = await fetch(`${API_URL}/api/auth/me`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) {
+            limparSessao();
+            mostrarLogin(res.status === 401 || res.status === 403
+                ? 'Sua sessão expirou. Entre novamente.' : null);
+            return false;
+        }
+        const me = await res.json();
+        usuarioLogado = me;
+        // Sessão restabelecida: rearma o detector para a PRÓXIMA expiração.
+        sessaoJaExpirada = false;
+        localStorage.setItem('horus_usuario_nome', me.nome || 'Operador');
+        localStorage.setItem('horus_empresa_nome', me.empresaNome || 'Horus Gestão');
+        atualizarBadgeIdentificacao(me.empresaNome, me.nome);
+        desbloquearWorkspace();
+        return true;
+    } catch (e) {
+        // Backend fora do ar: login é mais honesto que um workspace que não carrega nada.
+        mostrarLogin('Não foi possível falar com o servidor. Tente entrar novamente.');
+        return false;
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = textoBtn; }
+    }
+}
+
+function setupLoginSystem() {
+    instalarInterceptorDeSessao();
+    carregarIdentificacaoSessao();
+
+    const btnLogout = document.querySelector('.btn-logout');
     if (btnLogout) {
         btnLogout.addEventListener('click', () => {
-            localStorage.removeItem('tokenHorus');
-            // Limpa também os nomes ao sair:
-            localStorage.removeItem('horus_usuario_nome');
-            localStorage.removeItem('horus_empresa_nome');
+            limparSessao();
             window.location.reload();
         });
     }
+
+    // Decide entre workspace e login perguntando ao servidor, não ao localStorage.
+    validarSessaoGuardada();
 }
 
 async function realizarLoginVisual() {
@@ -108,22 +222,102 @@ async function realizarLoginVisual() {
             atualizarBadgeIdentificacao(nomeEmp, nomeUser);
             // ==========================================
 
-            // Animação de desbloqueio Premium
-            if (loginOverlay) {
-                loginOverlay.classList.add('unlocked');
-                setTimeout(() => loginOverlay.style.display = 'none', 600);
-            }
+            sessaoJaExpirada = false;
+
+            // Pede ao gerenciador de senhas do navegador para guardar as credenciais.
+            // O formulário já tem name/autocomplete corretos; isto torna o convite
+            // explícito, que é o que faz o Chrome perguntar em app de página única.
+            await oferecerSalvarSenha(loginInput, senhaInput, nomeUser);
+
+            desbloquearWorkspace();
         } else {
-            alert("Acesso Negado: Credenciais inválidas.");
+            const aviso = document.getElementById('loginAviso');
+            if (aviso) {
+                aviso.innerHTML = '<i class="ph ph-warning-circle"></i> Usuário ou senha incorretos.';
+                aviso.style.display = 'flex';
+            }
             document.getElementById('loginSenha').value = '';
+            document.getElementById('loginSenha').focus();
         }
     } catch (error) {
         console.error("Erro na API:", error);
-        alert("Erro de conexão com o servidor. Verifique o backend.");
+        const aviso = document.getElementById('loginAviso');
+        if (aviso) {
+            aviso.innerHTML = '<i class="ph ph-warning-circle"></i> Erro de conexão com o servidor.';
+            aviso.style.display = 'flex';
+        }
     } finally {
         btnEntrar.disabled = false;
         btnEntrar.innerHTML = textoOriginal;
     }
+}
+
+/**
+ * Convite explícito ao gerenciador de senhas (Credential Management API).
+ * Requer contexto seguro (https ou localhost) e é suportado no Chrome/Edge;
+ * onde não houver, os atributos do formulário já cobrem o caso padrão.
+ * A senha nunca sai do navegador — quem guarda é o próprio gerenciador.
+ */
+async function oferecerSalvarSenha(login, senha, nome) {
+    try {
+        if (!window.PasswordCredential || !navigator.credentials) return;
+        const credencial = new window.PasswordCredential({
+            id: login,
+            password: senha,
+            name: nome || login
+        });
+        await navigator.credentials.store(credencial);
+    } catch (e) {
+        console.debug('Gerenciador de senhas indisponível:', e && e.message);
+    }
+}
+
+/* ==========================================================================
+   CAMPOS OBRIGATÓRIOS — marcação visual única em todo o sistema
+   ========================================================================== */
+
+/**
+ * Marca com asterisco vermelho o rótulo de todo campo obrigatório.
+ *
+ * Cobre os dois padrões que conviviam no sistema:
+ *   1. campos com o atributo HTML `required`;
+ *   2. rótulos que já traziam um "*" digitado no texto (Contas a Pagar, modais
+ *      do Financeiro) — o asterisco literal é removido e substituído pelo mesmo
+ *      marcador, para a indicação ficar idêntica em toda a aplicação.
+ *
+ * Idempotente: pode ser chamada quantas vezes for preciso (o `required` muda em
+ * tempo de execução conforme o tipo do produto, e os modais nascem ocultos).
+ */
+function marcarCamposObrigatorios(raiz) {
+    const escopo = raiz || document;
+
+    // (1) rótulos com "*" digitado no texto -> vira marcador padrão
+    escopo.querySelectorAll('label').forEach(label => {
+        if (label.dataset.obrigatorioNormalizado) return;
+        const noText = Array.from(label.childNodes)
+            .filter(n => n.nodeType === Node.TEXT_NODE)
+            .pop();
+        if (noText && /\*\s*$/.test(noText.textContent)) {
+            noText.textContent = noText.textContent.replace(/\s*\*\s*$/, '');
+            label.classList.add('campo-obrigatorio');
+            label.dataset.obrigatorioNormalizado = '1';
+        }
+    });
+
+    // (2) campos com atributo required -> marca o rótulo correspondente
+    escopo.querySelectorAll('input, select, textarea').forEach(campo => {
+        const grupo = campo.closest('.input-group, .input-group-inline');
+        if (!grupo) return;
+        const label = grupo.querySelector('label');
+        if (!label) return;
+
+        // O rótulo é de um campo só quando o grupo tem um único controle.
+        const controles = grupo.querySelectorAll('input, select, textarea');
+        if (controles.length > 1) return;
+
+        label.classList.toggle('campo-obrigatorio',
+            campo.required || label.dataset.obrigatorioNormalizado === '1');
+    });
 }
 
 /* ==========================================================================
@@ -746,7 +940,9 @@ function handleTipoProdutoChange() {
     const valorObrigatorio = tipo === 'PF' || tipo === 'R';
 
     inputValor.required = valorObrigatorio;
-    inputValor.placeholder = valorObrigatorio ? 'R$ 0,00 *' : 'R$ 0,00 (opcional)';
+    inputValor.placeholder = valorObrigatorio ? 'R$ 0,00' : 'R$ 0,00 (opcional)';
+    // O `required` muda conforme o tipo: reaplica o marcador visual.
+    marcarCamposObrigatorios(document.getElementById('formSalvarProduto'));
 
     const inputEstoque = document.getElementById('produtoQuantidade');
     inputEstoque.disabled = false;
@@ -1854,9 +2050,18 @@ function atualizarBadgeIdentificacao(nomeEmpresa, nomeUsuario) {
     if (elUsuario) elUsuario.innerText = nomeUsuario || 'Operador';
 }
 
+/**
+ * Pinta os nomes guardados apenas como estado inicial enquanto a sessão é
+ * verificada. Sem token não há sessão: não exibe o último usuário da máquina,
+ * que era justamente o que dava a impressão de estar logado sem estar.
+ */
 function carregarIdentificacaoSessao() {
-    const empresaSalva = localStorage.getItem('horus_empresa_nome') || 'SaaS Workspace';
-    const usuarioSalvo = localStorage.getItem('horus_usuario_nome') || 'Utilizador Ativo';
+    if (!localStorage.getItem('tokenHorus')) {
+        atualizarBadgeIdentificacao('—', '—');
+        return;
+    }
+    const empresaSalva = localStorage.getItem('horus_empresa_nome') || 'Carregando...';
+    const usuarioSalvo = localStorage.getItem('horus_usuario_nome') || 'Carregando...';
     atualizarBadgeIdentificacao(empresaSalva, usuarioSalvo);
 }
 
